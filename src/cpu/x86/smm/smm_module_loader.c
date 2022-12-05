@@ -124,13 +124,20 @@ static int smm_create_map(const uintptr_t smbase, const unsigned int num_cpus,
 	return 1;
 }
 
+__weak enum platform_smm_status platform_get_smm_info(uintptr_t *perm_smbase, size_t *perm_smsize)
+{
+	return STANDARD_SMM_INIT;
+}
+
 /*
  * This method expects the smm relocation map to be complete.
  * This method does not read any HW registers, it simply uses a
- * map that was created during SMM setup.
+ * map that was created during SMM setup. If the platform configuration
+ * requests relocation for an alternative SMM, it must define this function.
  * input: cpu_num - cpu number which is used as an index into the
  *       map to return the smbase
  */
+#if CONFIG(HAVE_NATIVE_SMI_HANDLER)
 u32 smm_get_cpu_smbase(unsigned int cpu_num)
 {
 	if (cpu_num < CONFIG_MAX_CPUS) {
@@ -139,6 +146,7 @@ u32 smm_get_cpu_smbase(unsigned int cpu_num)
 	}
 	return 0;
 }
+#endif
 
 /*
  * This method assumes that at least 1 CPU has been set up from

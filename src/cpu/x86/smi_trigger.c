@@ -33,7 +33,7 @@ static void apmc_log(const char *fn, u8 cmd)
 enum cb_err apm_control(u8 cmd)
 {
 	/* Never proceed inside SMI handler or without one. */
-	if (ENV_SMM || !CONFIG(HAVE_SMI_HANDLER))
+	if (ENV_SMM || !CONFIG(HAVE_NATIVE_SMI_HANDLER))
 		return CB_ERR;
 
 	apmc_log(__func__, cmd);

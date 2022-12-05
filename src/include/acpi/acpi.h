@@ -1960,7 +1960,7 @@ int acpi_get_gpe(int gpe);
    responding to APM_CNT Advanced Power Management Control commands. */
 static inline int permanent_smi_handler(void)
 {
-	return CONFIG(HAVE_SMI_HANDLER);
+	return CONFIG(HAVE_NATIVE_SMI_HANDLER);
 }
 
 static inline int acpi_s3_resume_allowed(void)

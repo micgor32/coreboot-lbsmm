@@ -42,7 +42,7 @@
 #define STM_PSD_SIZE 0
 #endif
 
-/* Send cmd to APM_CNT with HAVE_SMI_HANDLER checking. */
+/* Send cmd to APM_CNT with HAVE_NATIVE_SMI_HANDLER checking. */
 enum cb_err apm_control(u8 cmd);
 u8 apm_get_apmc(void);
 
@@ -174,6 +174,22 @@ int smm_setup_stack(const uintptr_t perm_smbase, const size_t perm_smram_size,
 		    const unsigned int total_cpus, const size_t stack_size);
 int smm_setup_relocation_handler(struct smm_loader_params *params);
 int smm_load_module(uintptr_t smram_base, size_t smram_size, struct smm_loader_params *params);
+
+/*
+ * Return types to guide relocation for a payload with SMM support.
+ * `smm_info()` implementations require support.
+ */
+enum platform_smm_status {
+	SKIP_SMM_INIT,
+	MINIMAL_SMM_INIT,
+	STANDARD_SMM_INIT,
+};
+
+/*
+ * A platform driver can override this function to guide relocation
+ * for a payload with SMM support. `smm_info()` implementations require support.
+ */
+enum platform_smm_status platform_get_smm_info(uintptr_t *perm_smbase, size_t *perm_smsize);
 
 u32 smm_get_cpu_smbase(unsigned int cpu_num);
 

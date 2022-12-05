@@ -148,7 +148,16 @@ config HAVE_SMI_HANDLER
 	default n
 	depends on (SMM_ASEG || SMM_TSEG)
 
+config HAVE_NATIVE_SMI_HANDLER
+	bool
+	default y
+	depends on HAVE_SMI_HANDLER && !NO_COREBOOT_SMM
+
 config NO_SMM
+	bool
+	default n
+
+config NO_COREBOOT_SMM
 	bool
 	default n
 

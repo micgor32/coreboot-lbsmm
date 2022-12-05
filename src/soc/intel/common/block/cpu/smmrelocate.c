@@ -160,7 +160,7 @@ void smm_relocation_handler(int cpu, uintptr_t curr_smbase,
 		write_smrr(relo_params);
 }
 
-static void fill_in_relocation_params(struct smm_relocation_params *params)
+static void fill_in_relocation_params(struct smm_relocation_params *params, bool minimal)
 {
 	uintptr_t tseg_base;
 	size_t tseg_size;
@@ -174,7 +174,8 @@ static void fill_in_relocation_params(struct smm_relocation_params *params)
 		return;
 	}
 
-	smm_subregion(SMM_SUBREGION_CHIPSET, &params->ied_base, &params->ied_size);
+	if (!minimal)
+		smm_subregion(SMM_SUBREGION_CHIPSET, &params->ied_base, &params->ied_size);
 
 	/* SMRR has 32-bits of valid address aligned to 4KiB. */
 	params->smrr_base.lo = (tseg_base & rmask) | MTRR_TYPE_WRBACK;
@@ -208,11 +209,22 @@ static void setup_ied_area(struct smm_relocation_params *params)
 void smm_info(uintptr_t *perm_smbase, size_t *perm_smsize,
 				size_t *smm_save_state_size)
 {
+	enum platform_smm_status platform_status;
+	bool minimal;
+
+	platform_status = platform_get_smm_info(perm_smbase, perm_smsize);
+	if (platform_status == SKIP_SMM_INIT) {
+		*smm_save_state_size = sizeof(em64t101_smm_state_save_area_t);
+		return;
+	}
+
 	printk(BIOS_DEBUG, "Setting up SMI for CPU\n");
 
-	fill_in_relocation_params(&smm_reloc_params);
+	minimal = platform_status == MINIMAL_SMM_INIT;
+	fill_in_relocation_params(&smm_reloc_params, minimal);
 
-	smm_subregion(SMM_SUBREGION_HANDLER, perm_smbase, perm_smsize);
+	if (!minimal)
+		smm_subregion(SMM_SUBREGION_HANDLER, perm_smbase, perm_smsize);
 
 	if (smm_reloc_params.ied_size)
 		setup_ied_area(&smm_reloc_params);

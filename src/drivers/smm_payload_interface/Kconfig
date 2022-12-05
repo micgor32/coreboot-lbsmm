@@ -1,0 +1,35 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
+config SMM_PAYLOAD_INTERFACE
+	bool "Support for coreboot-mediated payload SMM"
+	default n
+	help
+	  Implements coreboot-to-payload compatibility layers for initialising or sharing
+	  SMM. An example use-case is enabling EDK2 Secure Boot with Authenticated Variables.
+
+	  Select N if unsure.
+
+choice
+	prompt "MM core to use"
+	depends on SMM_PAYLOAD_INTERFACE
+
+config SMM_PAYLOAD_INTERFACE_PAYLOAD_SMM
+	bool "Payload SMM"
+	depends on SOC_INTEL_COMMON
+	select NO_COREBOOT_SMM
+	help
+	  Payload owns SMM.
+
+	  It communicates SoC-specific information for implementation flexibility.
+	  For an S3 boot, "SMM core" support performs SMM rebase, and the payload SMI
+	  should perform lockdown.
+
+endchoice
+
+if !SMMSTORE && SMM_PAYLOAD_INTERFACE
+
+# Initialise size of reused "SMMSTORE" FMAP region for native UefiPayload
+config SMMSTORE_SIZE
+	default 0x40000
+
+endif

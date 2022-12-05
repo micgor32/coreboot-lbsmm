@@ -20,6 +20,7 @@
 #include <bootmem.h>
 #include <bootsplash.h>
 #include <inttypes.h>
+#include <smm_payload_interface.h>
 #include <spi_flash.h>
 #include <smmstore.h>
 #include <types.h>
@@ -532,6 +533,10 @@ static uintptr_t write_coreboot_table(uintptr_t rom_table_end)
 		lb_spi_flash(head);
 
 	add_cbmem_pointers(head);
+
+	/* coreboot-mediated payload SMM/MM initialisation */
+	if (CONFIG(SMM_PAYLOAD_INTERFACE))
+		lb_save_restore(head);
 
 	/* SMMSTORE v2 */
 	if (CONFIG(SMMSTORE_V2))

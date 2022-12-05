@@ -87,6 +87,10 @@ enum {
 	LB_TAG_TYPE_C_INFO		= 0x0042,
 	LB_TAG_ACPI_RSDP		= 0x0043,
 	LB_TAG_PCIE			= 0x0044,
+	LB_TAG_PLD_SMM_REGISTER_INFO    = 0x0050,
+	LB_TAG_PLD_SMM_SMRAM            = 0x0051,
+	LB_TAG_PLD_SPI_FLASH_INFO       = 0x0052,
+	LB_TAG_PLD_S3_COMMUNICATION     = 0x0054,
 	/* The following options are CMOS-related */
 	LB_TAG_CMOS_OPTION_TABLE	= 0x00c8,
 	LB_TAG_OPTION			= 0x00c9,
@@ -566,6 +570,82 @@ struct lb_tpm_physical_presence {
 	uint8_t tpm_version;	/* 1: TPM1.2, 2: TPM2.0 */
 	uint8_t ppi_version;	/* BCD encoded */
 	uint8_t pad[2];
+};
+
+/*
+ * SMM registers information structure
+ */
+enum lb_pld_efi_acpi_3_0_memory_types {
+	PLD_EFI_ACPI_3_0_SYSTEM_MEMORY = 0,
+	PLD_EFI_ACPI_3_0_SYSTEM_IO,
+	PLD_EFI_ACPI_3_0_PCI_CONFIGURATION_SPACE,
+};
+
+enum lb_pld_register_id {
+	REGISTER_ID_SMI_GBL_EN = 1,
+	REGISTER_ID_SMI_GBL_EN_LOCK,
+	REGISTER_ID_SMI_EOS,
+	REGISTER_ID_SMI_APM_EN,
+	REGISTER_ID_SMI_APM_STS,
+	REGISTER_ID_SMRAMC,
+};
+
+struct lb_pld_generic_register {
+	uint8_t register_id;
+	uint8_t address_space_id;
+	uint8_t register_bit_width;
+	uint8_t register_bit_offset;
+	// TODO: Reduced from uint64_t and dropped an access_size field
+	uint32_t value;
+	lb_uint64_t address;
+};
+
+struct lb_pld_smm_registers {
+	uint32_t tag;
+	uint32_t size;
+	uint32_t revision;
+	uint32_t count;
+	struct lb_pld_generic_register registers[];
+};
+
+/*
+ * SMRAM descriptor structure
+ */
+struct lb_pld_smram_descriptor {
+	lb_uint64_t physical_start;
+	lb_uint64_t physical_size;
+	lb_uint64_t region_state;
+};
+
+struct lb_pld_smram_descriptor_block {
+	uint32_t tag;
+	uint32_t size;
+	uint32_t number_of_smm_regions;
+	struct lb_pld_smram_descriptor descriptor[1];
+};
+
+/*
+ * SPI flash info structure
+ */
+#define FLAGS_SPI_DISABLE_SMM_WRITE_PROTECT (1 << 0)
+
+struct lb_pld_spi_flash_info {
+	uint32_t tag;
+	uint32_t size;
+	uint16_t revision;
+	uint16_t flags;
+	struct lb_pld_generic_register spi_address;
+};
+
+/*
+ * SMM S3 communication structure
+ */
+struct lb_pld_s3_communication {
+	uint32_t tag;
+	uint32_t size;
+	struct lb_pld_smram_descriptor comm_buffer;
+	uint8_t pld_acpi_s3_enable;
+	uint8_t pad[3];
 };
 
 

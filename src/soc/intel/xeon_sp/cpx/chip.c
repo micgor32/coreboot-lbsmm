@@ -1,18 +1,18 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-
+#include <acpi/acpigen_pci.h>
 #include <arch/ioapic.h>
 #include <console/console.h>
 #include <console/debug.h>
 #include <cpu/x86/mp.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
-#include <device/pci_def.h>
 #include <gpio.h>
 #include <intelblocks/acpi.h>
 #include <intelblocks/lpc_lib.h>
 #include <intelblocks/p2sb.h>
 #include <soc/acpi.h>
 #include <soc/chip_common.h>
+#include <soc/numa.h>
 #include <soc/pch.h>
 #include <soc/soc_pch.h>
 #include <soc/ramstage.h>
@@ -26,25 +26,6 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *silupd)
 {
 	mainboard_silicon_init_params(silupd);
 }
-
-#if CONFIG(HAVE_ACPI_TABLES)
-const char *soc_acpi_name(const struct device *dev)
-{
-	if (dev->path.type == DEVICE_PATH_DOMAIN)
-		return "PC00";
-	return NULL;
-}
-#endif
-
-static struct device_operations pci_domain_ops = {
-	.read_resources = iio_pci_domain_read_resources,
-	.set_resources = pci_domain_set_resources,
-	.scan_bus = iio_pci_domain_scan_bus,
-#if CONFIG(HAVE_ACPI_TABLES)
-	.write_acpi_tables  = &northbridge_write_acpi_tables,
-	.acpi_name        = soc_acpi_name
-#endif
-};
 
 static struct device_operations cpu_bus_ops = {
 	.read_resources = noop_read_resources,
@@ -61,8 +42,7 @@ static void chip_enable_dev(struct device *dev)
 {
 	/* Set the operations if it is a special bus type */
 	if (dev->path.type == DEVICE_PATH_DOMAIN) {
-		dev->ops = &pci_domain_ops;
-		attach_iio_stacks(dev);
+		/* domain ops are assigned at their creation */
 	} else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER) {
 		dev->ops = &cpu_bus_ops;
 	} else if (dev->path.type == DEVICE_PATH_GPIO) {
@@ -114,42 +94,6 @@ static void iio_enable_masks(void)
 	iio_dmi_en_masks();
 }
 
-static void set_pcu_locks(void)
-{
-	struct device *dev = NULL;
-
-	while ((dev = dev_find_device(PCI_VID_INTEL, PCU_CR0_DEVID, dev))) {
-		printk(BIOS_SPEW, "%s: locking registers\n", dev_path(dev));
-		pci_or_config32(dev, PCU_CR0_P_STATE_LIMITS, P_STATE_LIMITS_LOCK);
-		pci_or_config32(dev, PCU_CR0_PACKAGE_RAPL_LIMIT_UPR,
-				PKG_PWR_LIM_LOCK_UPR);
-		pci_or_config32(dev, PCU_CR0_TURBO_ACTIVATION_RATIO,
-				TURBO_ACTIVATION_RATIO_LOCK);
-	}
-
-	dev = NULL;
-	while ((dev = dev_find_device(PCI_VID_INTEL, PCU_CR1_DEVID, dev))) {
-		printk(BIOS_SPEW, "%s: locking registers\n", dev_path(dev));
-		pci_or_config32(dev, PCU_CR1_SAPMCTL, SAPMCTL_LOCK_MASK);
-	}
-
-	dev = NULL;
-	while ((dev = dev_find_device(PCI_VID_INTEL, PCU_CR2_DEVID, dev))) {
-		printk(BIOS_SPEW, "%s: locking registers\n", dev_path(dev));
-		pci_or_config32(dev, PCU_CR2_DRAM_PLANE_POWER_LIMIT,
-				PP_PWR_LIM_LOCK);
-		pci_or_config32(dev, PCU_CR2_DRAM_POWER_INFO_UPR,
-				DRAM_POWER_INFO_LOCK_UPR);
-	}
-
-	dev = NULL;
-	while ((dev = dev_find_device(PCI_VID_INTEL, PCU_CR3_DEVID, dev))) {
-		printk(BIOS_SPEW, "%s: locking registers\n", dev_path(dev));
-		pci_or_config32(dev, PCU_CR3_CONFIG_TDP_CONTROL, TDP_LOCK);
-		pci_or_config32(dev, PCU_CR3_FLEX_RATIO, OC_LOCK);
-	}
-}
-
 static void set_imc_locks(void)
 {
 	struct device *dev = 0;
@@ -172,19 +116,21 @@ static void chip_final(void *data)
 	/* LOCK PAM */
 	pci_or_config32(pcidev_path_on_root(PCI_DEVFN(0, 0)), 0x80, 1 << 0);
 
-	set_pcu_locks();
 	set_imc_locks();
 	set_upi_locks();
 
 	p2sb_hide();
 	iio_enable_masks();
-	set_bios_init_completion();
 }
 
 static void chip_init(void *data)
 {
 	printk(BIOS_DEBUG, "coreboot: calling fsp_silicon_init\n");
 	fsp_silicon_init();
+
+	setup_pds();
+	attach_iio_stacks();
+
 	override_hpet_ioapic_bdf();
 	pch_enable_ioapic();
 	pch_lock_dmictl();

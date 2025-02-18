@@ -602,13 +602,7 @@ Scope (\_SB.PCI0)
 		}
 
 		/* Request IOM for D3 cold entry sequence. */
-		/*
-		 * FIXME: Remove this workaround after resolving b/244082753
-		 *
-		 * Document #742990: TCCold exit flow may not complete when processor at package
-		 * C0. The implication is that the system may hang.
-		 */
-		// TD3C = 1
+		TD3C = 1
 	}
 
 	PowerResource (D3C, 5, 0)
@@ -718,7 +712,7 @@ Scope (\_SB.PCI0)
 
 		Method (_STA, 0x0, NotSerialized)
 		{
-			If (TRE0 == 1) {
+			If (VDID != 0xFFFFFFFF) {
 				Return (0x0F)
 			} Else {
 				Return (0x0)
@@ -748,7 +742,7 @@ Scope (\_SB.PCI0)
 
 		Method (_STA, 0x0, NotSerialized)
 		{
-			If (TRE1 == 1) {
+			If (VDID != 0xFFFFFFFF) {
 				Return (0x0F)
 			} Else {
 				Return (0x0)
@@ -778,7 +772,7 @@ Scope (\_SB.PCI0)
 
 		Method (_STA, 0x0, NotSerialized)
 		{
-			If (TRE2 == 1) {
+			If (VDID != 0xFFFFFFFF) {
 				Return (0x0F)
 			} Else {
 				Return (0x0)
@@ -808,7 +802,7 @@ Scope (\_SB.PCI0)
 
 		Method (_STA, 0x0, NotSerialized)
 		{
-			If (TRE3 == 1) {
+			If (VDID != 0xFFFFFFFF) {
 				Return (0x0F)
 			} Else {
 				Return (0x0)

@@ -39,14 +39,28 @@ config PLATFORM_USES_FSP2_3
 	  1. Added ExtendedImageRevision field in FSP_INFO_HEADER
 	  2. Added FSP_NON_VOLATILE_STORAGE_HOB2
 
+config PLATFORM_USES_FSP2_4
+	bool
+	default n
+	select PLATFORM_USES_FSP2_3
+	help
+	  Include FSP 2.4 wrappers and functionality.
+	  Features added into FSP 2.4 specification that impact coreboot are:
+	  1. FSP-M multi phase init support
+	  2. FSPM_ARCH2_UPD and FSPS_ARCH2_UPD data structures must be
+	     used in place of FSPM_ARCH_UPD and FSPS_ARCH_UPD respectively
+	  3. 64-bits support
+
 if PLATFORM_USES_FSP2_0
 
 config PLATFORM_USES_FSP2_X86_32
 	bool
+	default n if PLATFORM_USES_FSP2_4
 	default y
 	help
-	  The FSP 2.0 runs in x86_32 protected mode.
-	  Once there's a x86_64 FSP this needs to default to n.
+	  Specify if the FSP binaries are 32-bits (yes) or 64-bits
+	  (no). By default, 64-bit should be used starting with FSP
+	  specification 2.4
 
 config HAVE_INTEL_FSP_REPO
 	bool
@@ -221,6 +235,17 @@ config FSP_USES_CB_STACK
 	  without reinitializing stack pointer. This feature is
 	  supported Icelake onwards.
 
+config FSP_SPEC_VIOLATION_XEON_SP_HEAP_WORKAROUND
+	bool
+	help
+	 Starting with Intel CPX there is a bug in there reference code during
+	 the pipe init. This code synchronises the CAR between sockets in FSP-M.
+	 This code implicitly assumes that the FSP heap is right above the
+	 RC heap, where both of them are located at the bottom part of CAR.
+	 Select this to have an explicit handling of the FSP StackBase to work
+	 around this issue. This is needed on multi-socket Xeon-SP systems.
+	 This will place the FSP heap right above the FSP-M RC heap.
+
 config FSP_TEMP_RAM_SIZE
 	hex
 	help
@@ -316,50 +341,32 @@ config FSP_M_ADDR
 	help
 	  The address FSP-M will be relocated to during build time
 
-config FSP_STATUS_GLOBAL_RESET_REQUIRED_3
-	bool
-	help
-	  FSP Reset Status code used for global reset as per FSP EAS v2.0 section 11.2.2
-
-config FSP_STATUS_GLOBAL_RESET_REQUIRED_4
-	bool
-	help
-	  FSP Reset Status code used for global reset as per FSP EAS v2.0 section 11.2.2
-
-config FSP_STATUS_GLOBAL_RESET_REQUIRED_5
-	bool
-	help
-	  FSP Reset Status code used for global reset as per FSP EAS v2.0 section 11.2.2
-
-config FSP_STATUS_GLOBAL_RESET_REQUIRED_6
-	bool
-	help
-	  FSP Reset Status code used for global reset as per FSP EAS v2.0 section 11.2.2
-
-config FSP_STATUS_GLOBAL_RESET_REQUIRED_7
-	bool
-	help
-	  FSP Reset Status code used for global reset as per FSP EAS v2.0 section 11.2.2
-
-config FSP_STATUS_GLOBAL_RESET_REQUIRED_8
-	bool
-	help
-	  FSP Reset Status code used for global reset as per FSP EAS v2.0 section 11.2.2
-
 config FSP_STATUS_GLOBAL_RESET
 	hex
 	depends on SOC_INTEL_COMMON_FSP_RESET
-	default 0x40000003 if FSP_STATUS_GLOBAL_RESET_REQUIRED_3
-	default 0x40000004 if FSP_STATUS_GLOBAL_RESET_REQUIRED_4
-	default 0x40000005 if FSP_STATUS_GLOBAL_RESET_REQUIRED_5
-	default 0x40000006 if FSP_STATUS_GLOBAL_RESET_REQUIRED_6
-	default 0x40000007 if FSP_STATUS_GLOBAL_RESET_REQUIRED_7
-	default 0x40000008 if FSP_STATUS_GLOBAL_RESET_REQUIRED_8
-	default 0xffffffff
+	range 0x4000000000000003 0x4000000000000008 if !PLATFORM_USES_FSP2_X86_32
+	range 0x40000003 0x40000008
+	default 0x4000000000000003 if !PLATFORM_USES_FSP2_X86_32
+	default 0x40000003
 	help
 	  If global reset is supported by SoC then select the correct status value for global
-	  reset type from SoC Kconfig based on available Kconfig options
-	  FSP_STATUS_GLOBAL_RESET_REQUIRED_X. Default is unsupported.
+	  reset type.
+
+	  This option specifies the global reset status code used by the
+	  platform, as defined in the FSP specification.
+
+	  The FSP specification allows for a range of values to indicate a
+	  global reset request, typically between
+	  FSP_STATUS_GLOBAL_RESET_REQUIRED_3 and
+	  FSP_STATUS_GLOBAL_RESET_REQUIRED_8.
+
+	  This option defaults to the most commonly used global reset
+	  status code in FSP implementations:
+	  - 0x40000003 for 32-bit FSP interfaces
+	  - 0x4000000000000003 for 64-bit FSP interfaces
+
+	  If your FSP implementation uses a different global reset status
+	  code, override this default value accordingly.
 
 config SOC_INTEL_COMMON_FSP_RESET
 	bool
@@ -442,6 +449,15 @@ config DISPLAY_FSP_TIMESTAMPS
 	  To be able to use this, FSP has to be compiled with `PcdFspPerformanceEnable` set to
 	  `TRUE`.
 
+config FSP_UGOP_EARLY_SIGN_OF_LIFE
+	bool
+	default n
+	select VBT_CBFS_COMPRESSION_DEFAULT_LZ4
+	help
+	  Enable the FSP-M Sign-of-Life feature to display a text message
+	  on screen during memory training and CSME update. This utilizes Intel's underlying uGOP
+	  technology to enable early sign of life (eSOL) as part of FSP-M.
+
 config FSP_ENABLE_SERIAL_DEBUG
 	bool "Output FSP debug messages on serial console"
 	default y
@@ -487,5 +503,23 @@ config FSP_MULTIPHASE_SI_INIT_RETURN_BROKEN
 	  problem existed inside the FSP MultiPhaseSiInit. At present the problem has only
 	  reported with Alder Lake and Raptor Lake FSP where MultiPhaseSiInit API is unable
 	  to return any ERROR status.
+
+config FSP_PUBLISH_MBP_HOB
+	bool
+	default n if CHROMEOS
+	default y
+	help
+	  This is to control creation of ME_BIOS_PAYLOAD_HOB (MBP HOB) by FSP.
+	  Disabling it for the platforms, which do not use MBP HOB, can improve the boot time.
+
+	  ChromeOS devices typically do not require the MBP information, hence it is disabled
+	  by default on ChromeOS.
+
+config BUILDING_WITH_DEBUG_FSP
+	bool "Use Debug FSP for Build"
+	default n
+	help
+	  Enable this option if you are using a debug build of the FSP (Firmware Support Package)
+	  in your project.
 
 endif

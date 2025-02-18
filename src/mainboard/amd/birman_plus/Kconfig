@@ -20,20 +20,28 @@ config BOARD_AMD_BIRMANPLUS_PHOENIX
 	select BOARD_AMD_BIRMANPLUS_COMMON
 	select SOC_AMD_PHOENIX_FSP
 
+config BOARD_AMD_BIRMANPLUS_GLINDA
+	select BOARD_AMD_BIRMANPLUS_COMMON
+	select SOC_AMD_GLINDA
+
 if BOARD_AMD_BIRMANPLUS_COMMON
 
 config FMDFILE
 	default "src/mainboard/amd/birman_plus/chromeos_phoenix.fmd" if CHROMEOS && BOARD_AMD_BIRMANPLUS_PHOENIX
+	default "src/mainboard/amd/birman_plus/chromeos_glinda.fmd" if CHROMEOS && BOARD_AMD_BIRMANPLUS_GLINDA
 	default "src/mainboard/amd/birman_plus/board_phoenix.fmd" if BOARD_AMD_BIRMANPLUS_PHOENIX
+	default "src/mainboard/amd/birman_plus/board_glinda.fmd" if BOARD_AMD_BIRMANPLUS_GLINDA
 
 config MAINBOARD_DIR
-	default "amd/birman_plus" if BOARD_AMD_BIRMANPLUS_PHOENIX
+	default "amd/birman_plus" if BOARD_AMD_BIRMANPLUS_PHOENIX || BOARD_AMD_BIRMANPLUS_GLINDA
 
 config MAINBOARD_PART_NUMBER
 	default "Birmanplus_Phoenix" if BOARD_AMD_BIRMANPLUS_PHOENIX
+	default "Birmanplus_Glinda"  if BOARD_AMD_BIRMANPLUS_GLINDA
 
 config DEVICETREE
-	default "devicetree_phoenix.cb"
+	default "devicetree_phoenix.cb" if BOARD_AMD_BIRMANPLUS_PHOENIX
+	default "devicetree_glinda.cb"  if BOARD_AMD_BIRMANPLUS_GLINDA
 
 config BIRMANPLUS_HAVE_MCHP_FW
 	bool "Have Microchip EC firmware?"
@@ -41,7 +49,7 @@ config BIRMANPLUS_HAVE_MCHP_FW
 
 config BIRMANPLUS_MCHP_SIG_FILE
 	string "Microchip EC signature file"
-	depends on BIRMAN_HAVE_MCHP_FW
+	depends on BIRMANPLUS_HAVE_MCHP_FW
 	default "3rdparty/blobs/mainboard/amd/birman_plus/EC_birmanplus_sig.bin"
 	help
 	  The EC sig blob is the first 4kBytes of the firmware image.
@@ -53,7 +61,7 @@ config AMD_SOC_CONSOLE_UART
 
 config BIRMANPLUS_MCHP_FW_FILE
 	string "Microchip EC firmware file"
-	depends on BIRMAN_HAVE_MCHP_FW
+	depends on BIRMANPLUS_HAVE_MCHP_FW
 	default "3rdparty/blobs/mainboard/amd/birman_plus/EC_birmanplus.bin"
 	help
 	  The EC firmware blob is at the EC_BODY FMAP region of the firmware image.
@@ -71,7 +79,7 @@ config RO_REGION_ONLY
 	string
 	depends on VBOOT_SLOTS_RW_AB || VBOOT_SLOTS_RW_A
 	# Add the EFS and EC to the RO region only
-	# This is a birman-specific override of soc/amd/(phoenix | glinda)/Kconfig
+	# This is a birmanplus specific override of soc/amd/(phoenix | glinda)/Kconfig
 	default "apu/amdfw apu/ecfw"
 
 config CHROMEOS
@@ -91,39 +99,44 @@ config ENABLE_EVAL_19V
 	help
 	  Enable the 19V rail for Eval Card PCIe slot
 
-choice
-	prompt "DT SLOT/M.2 SSD1 ENABLE"
-	default ENABLE_DT_SLOT_BIRMANPLUS
+config ENABLE_SSD1_BIRMANPLUS
+	bool "Enable M.2 SSD1 Slot"
 	help
-	  Either DT slot or M.2 SSD1 can be used, as they are sharing PCIe lanes.
+	  Enable M.2 SSD1 Slot. For Glinda SoC this will downgrade
+	  PCIe x8 slot to x4.
 
-config ENABLE_DT_SLOT_BIRMANPLUS
-	bool "Enable DT slot"
+choice
+	prompt "GBE Enable/WWAN LANE1 Selection"
+	default ENABLE_GBE_BIRMANPLUS
+	help
+	  When the M.2 x2 WWAN slot is enabled, the GbE LAN is disabled.
 
-config ENABLE_M2_SSD1_BIRMANPLUS
-	bool "Enable M.2 SSD1"
+config ENABLE_GBE_BIRMANPLUS
+	bool "Enable GBE (1 Lane WWAN)"
 
-config DISABLE_DT_M2_BIRMANPLUS
-	bool "Disable both DT and M.2 slot"
+config ENABLE_WWAN02_BIRMANPLUS
+	bool "Enable only WWAN (2 Lanes WWAN)"
 
+config DISABLE_WWAN_GBE_BIRMANPLUS
+	bool "Disable both WWAN and GBE"
 endchoice
 
 choice
-	prompt "WLAN/WWAN Selection"
-	default WLAN0_WWAN0_BIRMANPLUS
+	prompt "SD Card Enable/WLAN LANE1 Selection"
+	default ENABLE_SDCARD_BIRMANPLUS
 	help
-	  WLAN and WWAN lane configuration
+	  When the M.2 x2 WLAN slot is enabled, the SD Card Reader is disabled.
 
-config WLAN0_WWAN0_BIRMANPLUS
-	bool "Both WLAN and WWAN Enabled (1 lane each)"
+config ENABLE_SDCARD_BIRMANPLUS
+	bool "Enable SD Card (1 Lane WLAN)"
 
-config WLAN01_BIRMANPLUS
-	bool "Only WLAN Enabled (2 lanes WLAN, 0 lanes WWAN)"
+config ENABLE_WLAN02_BIRMANPLUS
+	bool "Enable only WLAN (2 Lanes WLAN)"
 
-config WWAN01_BIRMANPLUS
-	bool "Only WWAN Enabled (2 lanes WWAN, 0 lanes WLAN)"
-
+config DISABLE_WLAN_SD_BIRMANPLUS
+	bool "Disable both WLAN and SD Card"
 endchoice
+
 if !EM100	# EM100 defaults in soc/amd/common/blocks/spi/Kconfig
 config EFS_SPI_READ_MODE
 	default 3	# Quad IO (1-1-4)

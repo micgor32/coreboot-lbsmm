@@ -4,6 +4,8 @@
 - Birman for Phoenix SoC using FSP
 - Birman for Phoenix SoC using openSIL
 - Birman for Glinda SoC
+- BirmanPlus for Phoenix SoC
+- BirmanPlus for Glinda SoC
 - Chausie
 - Majolica
 - Mayan for Phoenix SoC
@@ -35,6 +37,11 @@
 - Tricky (Dell Chromebox 3010)
 - Zako (HP Chromebox G1)
 - Brox
+- Brox EC ISH
+- Brox TI PDC
+- Greenbayupoc
+- Jubilant
+- Lotso
 - Agah
 - Anahera
 - Anahera4ES
@@ -48,11 +55,13 @@
 - Constitution
 - Crota
 - Dochi
+- Domika
 - Felwinter
 - Gaelin
 - Gimble
 - Gimble4ES
 - Gladios
+- Glassway
 - Gothrax
 - Hades
 - Kano
@@ -74,12 +83,19 @@
 - Quandiso
 - Redrix
 - Redrix4ES
+- Riven
+- Rull
 - Skolas
 - Skolas4ES
 - Taeko
 - Taeko4ES
 - Taniks
+- Teliks
+- Tereid
+- Tivviks
+- Trulo
 - Uldren
+- Uldrenite
 - Vell
 - Volmar
 - Xivu
@@ -87,19 +103,32 @@
 - Yavilla
 - Zydron
 - Xol
+- Nova
+- Bujia
+- Yavista
+- Sundance
+- Pujjoga
+- Pujjogatwin
+- Orisa
+- Telith
 - Butterfly (HP Pavilion Chromebook 14)
 - Cherry
 - Dojo
 - Tomato
 - Kingler
+- Kyogre
+- Ponyta
+- Squirtle
 - Steelix
 - Voltorb
-- Ponyta
-- Krabby
-- Tentacruel
-- Magikarp
 - Chinchou
+- Krabby
+- Magikarp
+- Skitty
+- Tentacruel
+- Veluza
 - Starmie
+- Wugtrio
 - Banon (Acer Chromebook 15 (CB3-532))
 - Celes (Samsung Chromebook 3)
 - Cyan (Acer Chromebook R11 (C738T))
@@ -113,6 +142,12 @@
 - Wizpig
 - Drallion
 - Eve (Google Pixelbook)
+- Fatcat
+- Fatcat_ish
+- Fatcatite
+- Fatcatnuvo
+- Felino
+- Francka
 - Fizz
 - Karma
 - Endeavour
@@ -216,6 +251,9 @@
 - Puff
 - Scout
 - Wyvern (CTL Chromebox CBx2)
+- Hylia
+- Navi
+- Rauru
 - Reef/Electro (Acer Chromebook Spin 11 R751T)
 - Pyro (Lenovo Thinkpad (Yoga) 11e Chromebook)
 - Sand (Acer Chromebook 15 CB515-1HT/1H)
@@ -231,8 +269,10 @@
 - Rex EC ISH
 - Rex4ES
 - Rex4ES EC ISH
+- Rex 64
 - Screebo
 - Screebo4ES
+- Kanix
 - Arcada (Latitude 5300 2-in-1 Chromebook Enterprise)
 - Sarien (Dell Latitude 5400 Chromebook Enterprise)
 - Crystaldrift
@@ -240,6 +280,7 @@
 - Markarth (Acer Chromebook Plus 514)
 - Skyrim
 - Winterhold (Dell Latitude 3445 Chromebook)
+- Skywalker
 - Falco (HP Chromebook 14)
 - Leon (Toshiba Chromebook)
 - Peppy (Acer C720/C720P Chromebook)
@@ -298,6 +339,10 @@
 - Woomax (ASUS Chromebook Flip CM5)
 
 ## HP
+- Compaq 8200 Elite SFF
+- Compaq 8200 Elite USDT
+- Compaq 8300 Elite SFF
+- Compaq Elite 8300 USDT
 - Z220 CMT Workstation
 - Z220 SFF Workstation
 
@@ -305,8 +350,6 @@
 - Alderlake-P RVP
 - Alderlake-P RVP with Chrome EC
 - Alderlake-P RVP with Microchip EC
-- Alderlake-M RVP
-- Alderlake-M RVP with Chrome EC
 - Alderlake-N RVP
 - Alderlake-N RVP with Chrome EC
 - Raptorlake silicon with Alderlake-P RVP
@@ -365,6 +408,7 @@
 - ThinkPad X230
 - ThinkPad X230t
 - ThinkPad X230s
+- ThinkPad X230 eDP Mod (2K/FHD)
 - ThinkPad X60 / X60s / X60t
 
 ## MSI
@@ -377,8 +421,8 @@
 - Elgon (GBCv2)
 
 ## Protectli
-- VP4630/VP4650
-- VP4670
+- VP6630/VP6650/VP6670
+- VP4630/VP4650/VP4670
 - VP2420
 
 ## SAMSUNG
@@ -395,6 +439,7 @@
 - MC APL7
 
 ## Star Labs
+- Star Labs Byte Mk II (N200)
 - Star Labs Lite Mk III (N5000)
 - Star Labs Lite Mk IV (N5030)
 - Star Labs LabTop Mk III (i7-8550u)
@@ -402,6 +447,8 @@
 - Star Labs StarBook Mk V (i3-1115G4 and i7-1165G7)
 - Star Labs StarBook Mk VI (i3-1220P and i7-1260P)
 - Star Labs StarBook Mk VI (i3-1315U and i7-1360P)
+- Star Labs StarFighter Mk I (i3-1315U, i7-13700H and i9-13900H)
+- Star Labs Lite Mk V (N200)
 
 ## Supermicro
 - X11SSH-TF

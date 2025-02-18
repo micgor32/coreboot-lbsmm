@@ -12,6 +12,7 @@
 #include <intelbasecode/debug_feature.h>
 #include <intelblocks/cse.h>
 #include <intelblocks/cse_layout.h>
+#include <intelblocks/cse_lite.h>
 #include <intelblocks/spi.h>
 #include <security/vboot/misc.h>
 #include <security/vboot/vboot_common.h>
@@ -19,122 +20,6 @@
 #include <timestamp.h>
 
 #include "cse_lite_cmos.h"
-
-#define BPDT_HEADER_SZ		sizeof(struct bpdt_header)
-#define BPDT_ENTRY_SZ		sizeof(struct bpdt_entry)
-#define SUBPART_HEADER_SZ	sizeof(struct subpart_hdr)
-#define SUBPART_ENTRY_SZ	sizeof(struct subpart_entry)
-#define SUBPART_MANIFEST_HDR_SZ	sizeof(struct subpart_entry_manifest_header)
-
-/* Converts bp index to boot partition string */
-#define GET_BP_STR(bp_index) (bp_index ? "RW" : "RO")
-
-/* CSE RW boot partition signature */
-#define CSE_RW_SIGNATURE	0x000055aa
-
-/* CSE RW boot partition signature size */
-#define CSE_RW_SIGN_SIZE	sizeof(uint32_t)
-
-/*
- * CSE Firmware supports 3 boot partitions. For CSE Lite SKU, only 2 boot partitions are
- * used and 3rd boot partition is set to BP_STATUS_PARTITION_NOT_PRESENT.
- * CSE Lite SKU Image Layout:
- * +------------+    +----+------+----+    +-----+------+-----+
- * | CSE REGION | => | RO | DATA | RW | => | BP1 | DATA | BP2 |
- * +------------+    +----+------+----+    +-----+------+-----+
- */
-#define CSE_MAX_BOOT_PARTITIONS 3
-
-/* CSE Lite SKU's valid bootable partition identifiers */
-enum boot_partition_id {
-	/* RO(BP1) contains recovery/minimal boot firmware */
-	RO = 0,
-
-	/* RW(BP2) contains fully functional CSE firmware */
-	RW = 1
-};
-
-/*
- * Boot partition status.
- * The status is returned in response to MKHI_BUP_COMMON_GET_BOOT_PARTITION_INFO cmd.
- */
-enum bp_status {
-	/* This value is returned when a partition has no errors */
-	BP_STATUS_SUCCESS = 0,
-
-	/*
-	 * This value is returned when a partition should be present based on layout, but it is
-	 * not valid.
-	 */
-	BP_STATUS_GENERAL_FAILURE = 1,
-
-	/* This value is returned when a partition is not present per initial image layout */
-	BP_STATUS_PARTITION_NOT_PRESENT = 2,
-
-	/*
-	 * This value is returned when unexpected issues are detected in CSE Data area
-	 * and CSE TCB-SVN downgrade scenario.
-	 */
-	BP_STATUS_DATA_FAILURE = 3,
-};
-
-/*
- * Boot Partition Info Flags
- * The flags are returned in response to MKHI_BUP_COMMON_GET_BOOT_PARTITION_INFO cmd.
- */
-enum bp_info_flags {
-
-	/* Redundancy Enabled: It indicates CSE supports RO(BP1) and RW(BP2) regions */
-	BP_INFO_REDUNDANCY_EN = 1 << 0,
-
-	/* It indicates RO(BP1) supports Minimal Recovery Mode */
-	BP_INFO_MIN_RECOV_MODE_EN = 1 << 1,
-
-	/*
-	 * Read-only Config Enabled: It indicates HW protection to CSE RO region is enabled.
-	 * The option is relevant only if the BP_INFO_MIN_RECOV_MODE_EN flag is enabled.
-	 */
-	BP_INFO_READ_ONLY_CFG = 1 << 2,
-};
-
-/* CSE boot partition entry info */
-struct cse_bp_entry {
-	/* Boot partition version */
-	struct fw_version fw_ver;
-
-	/* Boot partition status */
-	uint32_t status;
-
-	/* Starting offset of the partition within CSE region */
-	uint32_t start_offset;
-
-	/* Ending offset of the partition within CSE region */
-	uint32_t end_offset;
-	uint8_t reserved[12];
-} __packed;
-
-/* CSE boot partition info */
-struct cse_bp_info {
-	/* Number of boot partitions */
-	uint8_t total_number_of_bp;
-
-	/* Current boot partition */
-	uint8_t current_bp;
-
-	/* Next boot partition */
-	uint8_t next_bp;
-
-	/* Boot Partition Info Flags */
-	uint8_t flags;
-
-	/* Boot Partition Entry Info */
-	struct cse_bp_entry bp_entries[CSE_MAX_BOOT_PARTITIONS];
-} __packed;
-
-struct get_bp_info_rsp {
-	struct mkhi_hdr hdr;
-	struct cse_bp_info bp_info;
-} __packed;
 
 static struct get_bp_info_rsp cse_bp_info_rsp;
 
@@ -175,35 +60,6 @@ void cse_log_ro_write_protection_info(bool mfg_mode)
 		printk(BIOS_ERR, "ME: Write protection for CSE RO is not enabled\n");
 }
 
-enum cb_err cse_get_boot_performance_data(struct cse_boot_perf_rsp *boot_perf_rsp)
-{
-	struct cse_boot_perf_req {
-		struct mkhi_hdr hdr;
-		uint32_t reserved;
-	} __packed;
-
-	struct cse_boot_perf_req req = {
-		.hdr.group_id = MKHI_GROUP_ID_BUP_COMMON,
-		.hdr.command = MKHI_BUP_COMMON_GET_BOOT_PERF_DATA,
-		.reserved = 0,
-	};
-
-	size_t resp_size = sizeof(struct cse_boot_perf_rsp);
-
-	if (heci_send_receive(&req, sizeof(req), boot_perf_rsp, &resp_size,
-									HECI_MKHI_ADDR)) {
-		printk(BIOS_ERR, "cse_lite: Could not get boot performance data\n");
-		return CB_ERR;
-	}
-
-	if (boot_perf_rsp->hdr.result) {
-		printk(BIOS_ERR, "cse_lite: Get boot performance data resp failed: %d\n",
-				boot_perf_rsp->hdr.result);
-		return CB_ERR;
-	}
-
-	return CB_SUCCESS;
-}
 
 static const struct cse_bp_info *cse_get_bp_info_from_rsp(void)
 {
@@ -332,6 +188,9 @@ static void cse_store_rw_fw_version(void)
 /* Function to copy PRERAM CSE specific info to pertinent CBMEM. */
 static void preram_cse_info_sync_to_cbmem(int is_recovery)
 {
+	if (CONFIG(SOC_INTEL_CSE_LITE_SYNC_BY_PAYLOAD))
+		return;
+
 	if (vboot_recovery_mode_enabled() || !CONFIG(SOC_INTEL_STORE_CSE_FW_VERSION))
 		return;
 
@@ -383,18 +242,22 @@ static void cse_print_boot_partition_info(void)
 
 	/* Log version info of RO & RW partitions */
 	cse_bp = cse_get_bp_entry(RO);
-	printk(BIOS_DEBUG, "cse_lite: %s version = %d.%d.%d.%d (Status=0x%x, Start=0x%x, End=0x%x)\n",
+	if (cse_bp->status == BP_STATUS_SUCCESS)
+		printk(BIOS_DEBUG, "cse_lite: %s version = %d.%d.%d.%d (Start=0x%x, End=0x%x)\n",
 			GET_BP_STR(RO), cse_bp->fw_ver.major, cse_bp->fw_ver.minor,
 			cse_bp->fw_ver.hotfix, cse_bp->fw_ver.build,
-			cse_bp->status, cse_bp->start_offset,
-			cse_bp->end_offset);
+			cse_bp->start_offset, cse_bp->end_offset);
+	else
+		printk(BIOS_ERR, "cse_lite: %s status=0x%x\n", GET_BP_STR(RO), cse_bp->status);
 
 	cse_bp = cse_get_bp_entry(RW);
-	printk(BIOS_DEBUG, "cse_lite: %s version = %d.%d.%d.%d (Status=0x%x, Start=0x%x, End=0x%x)\n",
+	if (cse_bp->status == BP_STATUS_SUCCESS)
+		printk(BIOS_DEBUG, "cse_lite: %s version = %d.%d.%d.%d (Start=0x%x, End=0x%x)\n",
 			GET_BP_STR(RW), cse_bp->fw_ver.major, cse_bp->fw_ver.minor,
 			cse_bp->fw_ver.hotfix, cse_bp->fw_ver.build,
-			cse_bp->status, cse_bp->start_offset,
-			cse_bp->end_offset);
+			cse_bp->start_offset, cse_bp->end_offset);
+	else
+		printk(BIOS_ERR, "cse_lite: %s status=0x%x\n", GET_BP_STR(RW), cse_bp->status);
 }
 
 /*
@@ -518,6 +381,9 @@ static enum cb_err cse_get_bp_info(void)
 
 void cse_fill_bp_info(void)
 {
+	if (CONFIG(SOC_INTEL_CSE_LITE_SYNC_BY_PAYLOAD))
+		return;
+
 	if (vboot_recovery_mode_enabled())
 		return;
 
@@ -528,6 +394,9 @@ void cse_fill_bp_info(void)
 /* Function to copy PRERAM CSE BP info to pertinent CBMEM. */
 static void preram_cse_bp_info_sync_to_cbmem(int is_recovery)
 {
+	if (CONFIG(SOC_INTEL_CSE_LITE_SYNC_BY_PAYLOAD))
+		return;
+
 	if (vboot_recovery_mode_enabled())
 		return;
 
@@ -715,7 +584,6 @@ static void cse_get_bp_entry_range(enum boot_partition_id bp, uint32_t *start_of
 
 	if (end_offset)
 		*end_offset = cse_bp->end_offset;
-
 }
 
 static bool cse_is_rw_bp_status_valid(void)
@@ -872,6 +740,21 @@ static enum cb_err get_cse_ver_from_cbfs(struct fw_version *cbfs_rw_version)
 	return CB_SUCCESS;
 }
 
+static bool is_cse_sync_enforced(void)
+{
+	/*
+	 * Force test CSE firmware update scenario if below conditions are being met:
+	 *  - VB2_GBB_FLAG_FORCE_CSE_SYNC flag is set
+	 *  - CSE FW is in RO
+	 */
+	struct vb2_context *ctx = vboot_get_context();
+	if ((vb2api_gbb_get_flags(ctx) & VB2_GBB_FLAG_FORCE_CSE_SYNC) &&
+		 cse_get_current_bp() == RO) {
+		return true;
+	}
+	return false;
+}
+
 static enum cse_update_status cse_check_update_status(struct region_device *target_rdev)
 {
 	int ret;
@@ -890,12 +773,18 @@ static enum cse_update_status cse_check_update_status(struct region_device *targ
 			cbfs_rw_version.build);
 
 	ret = cse_compare_sub_part_version(&cbfs_rw_version, cse_get_rw_version());
-	if (ret == 0)
+	if (ret == 0) {
+		if (is_cse_sync_enforced()) {
+			printk(BIOS_WARNING, "Force CSE Firmware upgrade for Autotest\n");
+			return CSE_UPDATE_UPGRADE;
+		}
 		return CSE_UPDATE_NOT_REQUIRED;
-	else if (ret < 0)
-		return CSE_UPDATE_DOWNGRADE;
-	else
-		return CSE_UPDATE_UPGRADE;
+	} else {
+		if (ret < 0)
+			return CSE_UPDATE_DOWNGRADE;
+		else
+			return CSE_UPDATE_UPGRADE;
+	}
 }
 
 static enum cb_err cse_write_rw_region(const struct region_device *target_rdev,
@@ -917,12 +806,17 @@ static enum cb_err cse_write_rw_region(const struct region_device *target_rdev,
 		return CB_ERR;
 
 	printk(BIOS_INFO, "cse_lite: CSE RW Update Successful\n");
+	elog_add_event_byte(ELOG_TYPE_FW_CSE_SYNC, ENV_RAMSTAGE ? ELOG_FW_POST_RAM_CSE_SYNC :
+						 ELOG_FW_PRE_RAM_CSE_SYNC);
 	return CB_SUCCESS;
 }
 
 static bool is_cse_fw_update_enabled(void)
 {
 	if (!CONFIG(SOC_INTEL_CSE_RW_UPDATE))
+		return false;
+
+	if (CONFIG(SOC_INTEL_CSE_LITE_SYNC_BY_PAYLOAD))
 		return false;
 
 	if (CONFIG(SOC_INTEL_COMMON_BASECODE_DEBUG_FEATURE))
@@ -1111,7 +1005,6 @@ update_and_exit:
 	 * We cannot do much if CSE fails to backup the PSR data, except create an event log.
 	 */
 	update_psr_backup_status(PSR_BACKUP_DONE);
-	return;
 }
 
 static void initiate_psr_data_backup(void)
@@ -1143,7 +1036,24 @@ bool is_cse_fw_update_required(void)
 	if (get_cse_ver_from_cbfs(&cbfs_rw_version) == CB_ERR)
 		return false;
 
+	/* Check if CSE sync is enforced */
+	if (is_cse_sync_enforced()) {
+		return true;
+	}
 	return !!cse_compare_sub_part_version(&cbfs_rw_version, cse_get_rw_version());
+}
+
+bool is_cse_boot_to_rw(void)
+{
+	if (cse_get_bp_info() != CB_SUCCESS) {
+		printk(BIOS_ERR, "cse_lite: Failed to get CSE boot partition info\n");
+		return false;
+	}
+
+	if (cse_get_current_bp() == RW)
+		return true;
+
+	return false;
 }
 
 static uint8_t cse_fw_update(void)
@@ -1502,6 +1412,9 @@ static void do_cse_fw_sync(void)
 
 void cse_fw_sync(void)
 {
+	if (CONFIG(SOC_INTEL_CSE_LITE_SYNC_BY_PAYLOAD))
+		return;
+
 	timestamp_add_now(TS_CSE_FW_SYNC_START);
 	do_cse_fw_sync();
 	timestamp_add_now(TS_CSE_FW_SYNC_END);
@@ -1582,6 +1495,9 @@ static bool is_ish_version_valid(struct cse_fw_ish_version_info *version)
  */
 static void store_ish_version(void)
 {
+	if (CONFIG(SOC_INTEL_CSE_LITE_SYNC_BY_PAYLOAD))
+		return;
+
 	if (!ENV_RAMSTAGE)
 		return;
 
@@ -1653,7 +1569,7 @@ static void ramstage_cse_misc_ops(void *unused)
 	 * Store the ISH RW Firmware Version into CBMEM if ISH partition
 	 * is available
 	 */
-	if (soc_is_ish_partition_enabled())
+	if (!CONFIG(DRIVER_INTEL_ISH_HAS_MAIN_FW) && soc_is_ish_partition_enabled())
 		store_ish_version();
 }
 

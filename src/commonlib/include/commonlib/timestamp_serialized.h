@@ -84,6 +84,8 @@ enum timestamp_id {
 	TS_COPYVPD_RW_END = 552,
 	TS_TPM_ENABLE_UPDATE_START = 553,
 	TS_TPM_ENABLE_UPDATE_END = 554,
+	TS_ESOL_START = 555,
+	TS_ESOL_END = 556,
 
 	/* 900-940 reserved for vendorcode extensions (900-940: AMD) */
 	TS_AGESA_INIT_RESET_START = 900,
@@ -138,12 +140,15 @@ enum timestamp_id {
 	TS_FSP_END_OF_FIRMWARE_END = 961,
 	TS_FSP_MULTI_PHASE_SI_INIT_START = 962,
 	TS_FSP_MULTI_PHASE_SI_INIT_END = 963,
+	TS_FSP_MULTI_PHASE_MEM_INIT_START = 964,
+	TS_FSP_MULTI_PHASE_MEM_INIT_END = 965,
 	TS_FSP_MEMORY_INIT_LOAD = 970,
 	TS_FSP_SILICON_INIT_LOAD = 971,
 
 	/* 990+ reserved for vendorcode extensions (990-999: Intel ME continued) */
 	TS_ME_ROM_START = 990,
 	TS_ISSE_DMU_LOAD_END = 991,
+	TS_ESE_LOAD_AUNIT_END = 992,
 
 	/* 1000+ reserved for payloads */
 
@@ -161,6 +166,7 @@ enum timestamp_id {
 	TS_VB_EC_VBOOT_DONE = 1030,
 	TS_VB_STORAGE_INIT_DONE = 1040,
 	TS_VB_READ_KERNEL_DONE = 1050,
+	TS_VB_AUXFW_SYNC_DONE = 1060,
 	TS_VB_VBOOT_DONE = 1100,
 
 	TS_KERNEL_START = 1101,
@@ -263,6 +269,8 @@ static const struct timestamp_id_to_name {
 	TS_NAME_DEF(TS_TPM_ENABLE_UPDATE_START, TS_TPM_ENABLE_UPDATE_END,
 		    "started TPM enable update"),
 	TS_NAME_DEF(TS_TPM_ENABLE_UPDATE_END, 0, "finished TPM enable update"),
+	TS_NAME_DEF(TS_ESOL_START, 0, "started early sign-off life (eSOL) notification"),
+	TS_NAME_DEF(TS_ESOL_END, 0, "finished early sign-off life (eSOL) notification"),
 
 	/* AMD related timestamps */
 	TS_NAME_DEF(TS_AGESA_INIT_RESET_START, TS_AGESA_INIT_RESET_END, "calling AmdInitReset"),
@@ -319,6 +327,9 @@ static const struct timestamp_id_to_name {
 	TS_NAME_DEF(TS_FSP_MULTI_PHASE_SI_INIT_START, TS_FSP_MULTI_PHASE_SI_INIT_END,
 		    "calling FspMultiPhaseSiInit"),
 	TS_NAME_DEF(TS_FSP_MULTI_PHASE_SI_INIT_END, 0, "returning from FspMultiPhaseSiInit"),
+	TS_NAME_DEF(TS_FSP_MULTI_PHASE_MEM_INIT_START, TS_FSP_MULTI_PHASE_MEM_INIT_END,
+		    "calling FspMultiPhaseMemInit"),
+	TS_NAME_DEF(TS_FSP_MULTI_PHASE_MEM_INIT_END, 0, "returning from FspMultiPhaseMemInit"),
 	TS_NAME_DEF(TS_FSP_ENUMERATE_START, TS_FSP_ENUMERATE_END,
 		    "calling FspNotify(AfterPciEnumeration)"),
 	TS_NAME_DEF(TS_FSP_ENUMERATE_END, 0, "returning from FspNotify(AfterPciEnumeration)"),
@@ -334,6 +345,7 @@ static const struct timestamp_id_to_name {
 	/* Intel ME continued */
 	TS_NAME_DEF(TS_ME_ROM_START, 0, "CSME ROM started execution"),
 	TS_NAME_DEF(TS_ISSE_DMU_LOAD_END, 0, "Die Management Unit (DMU) load completed"),
+	TS_NAME_DEF(TS_ESE_LOAD_AUNIT_END, 0, "ESE completed AUnit loading"),
 
 	/* Depthcharge entry timestamp */
 	TS_NAME_DEF(TS_DC_START, 0, "depthcharge start"),
@@ -349,6 +361,7 @@ static const struct timestamp_id_to_name {
 	TS_NAME_DEF(TS_VB_EC_VBOOT_DONE, 0, "finished EC verification"),
 	TS_NAME_DEF(TS_VB_STORAGE_INIT_DONE, 0, "finished storage device initialization"),
 	TS_NAME_DEF(TS_VB_READ_KERNEL_DONE, 0, "finished reading kernel from disk"),
+	TS_NAME_DEF(TS_VB_AUXFW_SYNC_DONE, 0, "finished AuxFW Sync"),
 	TS_NAME_DEF(TS_VB_VBOOT_DONE, 0, "finished vboot kernel verification"),
 
 	TS_NAME_DEF(TS_KERNEL_START, 0, "jumping to kernel"),

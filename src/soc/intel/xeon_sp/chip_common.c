@@ -1,53 +1,125 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 
-#include <assert.h>
+#include <acpi/acpigen_pci.h>
 #include <console/console.h>
-#include <post.h>
 #include <device/pci.h>
+#include <intelblocks/acpi.h>
+#include <soc/acpi.h>
 #include <soc/chip_common.h>
 #include <soc/soc_util.h>
 #include <soc/util.h>
-#include <stdlib.h>
-
-static const STACK_RES *domain_to_stack_res(const struct device *dev)
-{
-	assert(dev->path.type == DEVICE_PATH_DOMAIN);
-	const union xeon_domain_path dn = {
-		.domain_path = dev->path.domain.domain
-	};
-
-	const IIO_UDS *hob = get_iio_uds();
-	assert(hob != NULL);
-
-	return &hob->PlatformData.IIO_resource[dn.socket].StackRes[dn.stack];
-}
 
 /**
- * Find a device of a given vendor and type for the specified socket.
+ * Find all device of a given vendor and type for the specified socket.
  * The function iterates over all PCI domains of the specified socket
  * and matches the PCI vendor and device ID.
  *
  * @param socket The socket where to search for the device.
  * @param vendor A PCI vendor ID (e.g. 0x8086 for Intel).
  * @param device A PCI device ID.
- * @return Pointer to the device struct.
+ * @param from The device pointer to start search from.
+ *
+ * @return Pointer to the device struct. When there are multiple device
+ * instances, the caller should continue search upon a non-NULL match.
+ */
+struct device *dev_find_all_devices_on_socket(uint8_t socket, u16 vendor, u16 device,
+	struct device *from)
+{
+	return dev_find_all_devices_on_stack(socket, XEONSP_STACK_MAX, vendor, device, from);
+}
+
+/*
+ * Find device of a given vendor and type for the specified socket.
+ * The function will return at the 1st match.
  */
 struct device *dev_find_device_on_socket(uint8_t socket, u16 vendor, u16 device)
 {
-	struct device *domain, *dev = NULL;
-	union xeon_domain_path dn;
+	return dev_find_all_devices_on_socket(socket, vendor, device, NULL);
+}
 
-	while ((dev = dev_find_device(vendor, device, dev))) {
-		domain = dev_get_pci_domain(dev);
-		if (!domain)
+static int filter_device_on_stack(struct device *dev, uint8_t socket, uint8_t stack,
+	u16 vendor, u16 device)
+{
+	if (dev->path.type != DEVICE_PATH_PCI)
+		return 0;
+
+	const struct device *domain = dev_get_domain(dev);
+	if (!domain)
+		return 0;
+
+	union xeon_domain_path dn;
+	dn.domain_path = dev_get_domain_id(domain);
+
+	if (socket != XEONSP_SOCKET_MAX && dn.socket != socket)
+		return 0;
+	if (stack != XEONSP_STACK_MAX && dn.stack != stack)
+		return 0;
+	if (vendor != XEONSP_VENDOR_MAX && dev->vendor != vendor)
+		return 0;
+	if (device != XEONSP_DEVICE_MAX && dev->device != device)
+		return 0;
+
+	return 1;
+};
+
+/**
+ * Find all device of a given vendor and type for the specified socket and stack.
+ *
+ * @param socket The socket where to search for the device.
+ *              XEONSP_SOCKET_MAX indicates any socket.
+ * @param stack The stack where to search for the device.
+ *              XEONSP_STACK_MAX indicates any stack.
+ * @param vendor A PCI vendor ID (e.g. 0x8086 for Intel).
+ *              XEONSP_VENDOR_MAX indicates any vendor.
+ * @param device A PCI device ID.
+ *              XEONSP_DEVICE_MAX indicates any device.
+ * @param from The device pointer to start search from.
+ *
+ * @return Pointer to the device struct. When there are multiple device
+ * instances, the caller should continue search upon a non-NULL match.
+ */
+struct device *dev_find_all_devices_on_stack(uint8_t socket, uint8_t stack,
+	u16 vendor, u16 device, struct device *from)
+{
+	if (!from)
+		from = all_devices;
+	else
+		from = from->next;
+
+	while (from && (!filter_device_on_stack(from, socket, stack,
+		vendor, device)))
+		from = from->next;
+
+	return from;
+}
+
+/**
+ * Find all device of a given vendor and type for the specific domain
+ * Only the direct child of the input domain is iterated
+ *
+ * @param domain Pointer to the input domain
+ * @param vendor A PCI vendor ID
+ *              XEONSP_VENDOR_MAX indicates any vendor
+ * @param vendor A PCI device ID
+ *              XEONSP_DEVICE_MAX indicates any vendor
+ * @param from The device pointer to start search from.
+ *
+ * @return Pointer to the device struct. When there are multiple device
+ * instances, the caller should continue search upon a non-NULL match.
+ */
+struct device *dev_find_all_devices_on_domain(struct device *domain, u16 vendor,
+	u16 device, struct device *from)
+{
+	struct device *dev = from;
+	while ((dev = dev_bus_each_child(domain->downstream, dev))) {
+		if (vendor != XEONSP_VENDOR_MAX && dev->vendor != vendor)
 			continue;
-		dn.domain_path = domain->path.domain.domain;
-		if (dn.socket != socket)
+		if (device != XEONSP_DEVICE_MAX && dev->device != device)
 			continue;
-		return dev;
+		break;
 	}
 
-	return NULL;
+	return dev;
 }
 
 /**
@@ -58,20 +130,16 @@ struct device *dev_find_device_on_socket(uint8_t socket, u16 vendor, u16 device)
  *
  * @return Socket ID the device is attached to, negative number on error.
  */
-int iio_pci_domain_socket_from_dev(struct device *dev)
+int iio_pci_domain_socket_from_dev(const struct device *dev)
 {
-	struct device *domain;
+	const struct device *domain;
 	union xeon_domain_path dn;
 
-	if (dev->path.type == DEVICE_PATH_DOMAIN)
-		domain = dev;
-	else
-		domain = dev_get_pci_domain(dev);
-
+	domain = dev_get_domain(dev);
 	if (!domain)
 		return -1;
 
-	dn.domain_path = domain->path.domain.domain;
+	dn.domain_path = dev_get_domain_id(domain);
 
 	return dn.socket;
 }
@@ -84,173 +152,103 @@ int iio_pci_domain_socket_from_dev(struct device *dev)
  *
  * @return Stack ID the device is attached to, negative number on error.
  */
-int iio_pci_domain_stack_from_dev(struct device *dev)
+int iio_pci_domain_stack_from_dev(const struct device *dev)
 {
-	struct device *domain;
+	const struct device *domain;
 	union xeon_domain_path dn;
 
-	if (dev->path.type == DEVICE_PATH_DOMAIN)
-		domain = dev;
-	else
-		domain = dev_get_pci_domain(dev);
-
+	domain = dev_get_domain(dev);
 	if (!domain)
 		return -1;
 
-	dn.domain_path = domain->path.domain.domain;
+	dn.domain_path = dev_get_domain_id(domain);
 
 	return dn.stack;
 }
 
-void iio_pci_domain_read_resources(struct device *dev)
+void create_domain(const union xeon_domain_path dp, struct bus *upstream,
+			       int bus_base, int bus_limit, const char *type,
+			       struct device_operations *ops,
+			       const size_t pci_segment_group)
 {
-	struct resource *res;
-	const STACK_RES *sr = domain_to_stack_res(dev);
+	struct device_path path;
+	init_xeon_domain_path(&path, dp.socket, dp.stack, bus_base);
 
-	if (!sr)
-		return;
+	struct device *const domain = alloc_find_dev(upstream, &path);
+	if (!domain)
+		die("%s: out of memory.\n", __func__);
 
-	int index = 0;
+	domain->ops = ops;
+	iio_domain_set_acpi_name(domain, type);
 
-	if (dev->path.domain.domain == 0) {
-		/* The 0 - 0xfff IO range is not reported by the HOB but still gets decoded */
-		res = new_resource(dev, index++);
-		res->base = 0;
-		res->size = 0x1000;
-		res->limit = 0xfff;
-		res->flags = IORESOURCE_IO | IORESOURCE_SUBTRACTIVE | IORESOURCE_ASSIGNED;
-	}
-
-	if (sr->PciResourceIoBase < sr->PciResourceIoLimit) {
-		res = new_resource(dev, index++);
-		res->base = sr->PciResourceIoBase;
-		res->limit = sr->PciResourceIoLimit;
-		res->size = res->limit - res->base + 1;
-		res->flags = IORESOURCE_IO | IORESOURCE_ASSIGNED;
-	}
-
-	if (sr->PciResourceMem32Base < sr->PciResourceMem32Limit) {
-		res = new_resource(dev, index++);
-		res->base = sr->PciResourceMem32Base;
-		res->limit = sr->PciResourceMem32Limit;
-		res->size = res->limit - res->base + 1;
-		res->flags = IORESOURCE_MEM | IORESOURCE_ASSIGNED;
-	}
-
-	if (sr->PciResourceMem64Base < sr->PciResourceMem64Limit) {
-		res = new_resource(dev, index++);
-		res->base = sr->PciResourceMem64Base;
-		res->limit = sr->PciResourceMem64Limit;
-		res->size = res->limit - res->base + 1;
-		res->flags = IORESOURCE_MEM | IORESOURCE_ASSIGNED;
-	}
-}
-
-void iio_pci_domain_scan_bus(struct device *dev)
-{
-	const STACK_RES *sr = domain_to_stack_res(dev);
-	if (!sr)
-		return;
-
-	struct bus *bus = alloc_bus(dev);
-	bus->secondary = sr->BusBase;
-	bus->subordinate = sr->BusBase;
-	bus->max_subordinate = sr->BusLimit;
-
-	printk(BIOS_SPEW, "Scanning IIO stack %d: busses %x-%x\n", dev->path.domain.domain,
-	       dev->downstream->secondary, dev->downstream->max_subordinate);
-	pci_host_bridge_scan_bus(dev);
-}
-
-/*
- * Used by IIO stacks for PCIe bridges. Those contain 1 PCI host bridges,
- *  all the bus numbers on the IIO stack can be used for this bridge
- */
-static struct device_operations iio_pcie_domain_ops = {
-	.read_resources = iio_pci_domain_read_resources,
-	.set_resources = pci_domain_set_resources,
-	.scan_bus = iio_pci_domain_scan_bus,
-};
-
-/*
- * Used by UBOX stacks. Those contain multiple PCI host bridges, each having
- * only one bus with UBOX devices. UBOX devices have no resources.
- */
-static struct device_operations ubox_pcie_domain_ops = {
-	.read_resources = noop_read_resources,
-	.set_resources = noop_set_resources,
-	.scan_bus = pci_host_bridge_scan_bus,
-};
-
-/*
- * On the first Xeon-SP generations there are no separate UBOX stacks,
- * and the UBOX devices reside on the first and second IIO. Starting
- * with 3rd gen Xeon-SP the UBOX devices are located on their own IIO.
- */
-static void soc_create_ubox_domains(const union xeon_domain_path dp, struct bus *upstream,
-				    const unsigned int bus_base, const unsigned int bus_limit)
-{
-	union xeon_domain_path new_path = {
-		.domain_path = dp.domain_path
-	};
-
-	for (int i = bus_base; i <= bus_limit; i++) {
-		new_path.bus = i;
-
-		struct device_path path = {
-			.type = DEVICE_PATH_DOMAIN,
-			.domain = {
-				.domain = new_path.domain_path,
-			},
-		};
-		struct device *const domain = alloc_dev(upstream, &path);
-		if (!domain)
-			die("%s: out of memory.\n", __func__);
-
-		domain->ops = &ubox_pcie_domain_ops;
-
-		struct bus *const bus = alloc_bus(domain);
-		bus->secondary = i;
-		bus->subordinate = bus->secondary;
-		bus->max_subordinate = bus->secondary;
-	}
+	struct bus *const bus = alloc_bus(domain);
+	bus->secondary = bus_base;
+	bus->subordinate = bus_base;
+	bus->max_subordinate = bus_limit;
+	bus->segment_group = pci_segment_group;
 }
 
 /* Attach stack as domains */
-void attach_iio_stacks(struct device *dev)
+void attach_iio_stacks(void)
 {
 	const IIO_UDS *hob = get_iio_uds();
 	union xeon_domain_path dn = { .domain_path = 0 };
 	if (!hob)
 		return;
 
-	for (int s = 0; s < hob->PlatformData.numofIIO; ++s) {
+	struct bus *root_bus = dev_root.downstream;
+	for (int s = 0; s < CONFIG_MAX_SOCKET; ++s) {
+		if (!soc_cpu_is_enabled(s))
+			continue;
 		for (int x = 0; x < MAX_LOGIC_IIO_STACK; ++x) {
-			if (s == 0 && x == 0)
-				continue;
+			const xSTACK_RES *ri = &hob->PlatformData.IIO_resource[s].StackRes[x];
+			const size_t seg = hob->PlatformData.CpuQpiInfo[s].PcieSegment;
 
-			const STACK_RES *ri = &hob->PlatformData.IIO_resource[s].StackRes[x];
 			if (ri->BusBase > ri->BusLimit)
 				continue;
 
 			/* Prepare domain path */
 			dn.socket = s;
 			dn.stack = x;
-			dn.bus = ri->BusBase;
 
-			if (is_ubox_stack_res(ri)) {
-				soc_create_ubox_domains(dn, dev->upstream, ri->BusBase, ri->BusLimit);
-			} else if (is_pcie_iio_stack_res(ri)) {
-				struct device_path path;
-				path.type = DEVICE_PATH_DOMAIN;
-				path.domain.domain = dn.domain_path;
-				struct device *iio_domain = alloc_dev(dev->upstream, &path);
-				if (iio_domain == NULL)
-					die("%s: out of memory.\n", __func__);
-
-				iio_domain->ops = &iio_pcie_domain_ops;
-			} else if (CONFIG(HAVE_IOAT_DOMAINS))
-				soc_create_ioat_domains(dn, dev->upstream, ri);
+			create_xeonsp_domains(dn, root_bus, ri, seg);
 		}
 	}
+}
+
+bool is_pcie_domain(const struct device *dev)
+{
+	if ((!dev) || (dev->path.type != DEVICE_PATH_DOMAIN))
+		return false;
+
+	return strstr(dev->name, DOMAIN_TYPE_PCIE);
+}
+
+bool is_ioat_domain(const struct device *dev)
+{
+	if ((!dev) || (dev->path.type != DEVICE_PATH_DOMAIN))
+		return false;
+
+	return (strstr(dev->name, DOMAIN_TYPE_CPM0) ||
+		strstr(dev->name, DOMAIN_TYPE_CPM1) ||
+		strstr(dev->name, DOMAIN_TYPE_DINO) ||
+		strstr(dev->name, DOMAIN_TYPE_HQM0) ||
+		strstr(dev->name, DOMAIN_TYPE_HQM1));
+}
+
+bool is_ubox_domain(const struct device *dev)
+{
+	if ((!dev) || (dev->path.type != DEVICE_PATH_DOMAIN))
+		return false;
+
+	return (strstr(dev->name, DOMAIN_TYPE_UBX0) ||
+		strstr(dev->name, DOMAIN_TYPE_UBX1));
+}
+
+bool is_cxl_domain(const struct device *dev)
+{
+	if ((!dev) || (dev->path.type != DEVICE_PATH_DOMAIN))
+		return false;
+
+	return strstr(dev->name, DOMAIN_TYPE_CXL);
 }

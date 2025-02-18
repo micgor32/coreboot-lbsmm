@@ -50,6 +50,9 @@ static void intel_ish_enable(struct device *dev)
 
 static void intel_ish_get_version(void)
 {
+	if (CONFIG(SOC_INTEL_CSE_LITE_SYNC_BY_PAYLOAD))
+		return;
+
 	struct cse_specific_info *info = cbmem_find(CBMEM_ID_CSE_INFO);
 	if (info == NULL)
 		return;
@@ -63,6 +66,9 @@ static void intel_ish_get_version(void)
 
 static void intel_ish_final(struct device *dev)
 {
+	if (CONFIG(DRIVER_INTEL_ISH_HAS_MAIN_FW))
+		return;
+
 	if (CONFIG(SOC_INTEL_STORE_ISH_FW_VERSION))
 		intel_ish_get_version();
 }
@@ -79,6 +85,8 @@ static const struct device_operations pci_ish_device_ops = {
 };
 
 static const unsigned short pci_device_ids[] = {
+	PCI_DID_INTEL_PTL_H_ISHB,
+	PCI_DID_INTEL_PTL_U_H_ISHB,
 	PCI_DID_INTEL_LNL_ISHB,
 	PCI_DID_INTEL_MTL_ISHB,
 	PCI_DID_INTEL_CNL_ISHB,

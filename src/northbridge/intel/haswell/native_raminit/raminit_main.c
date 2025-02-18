@@ -3,11 +3,11 @@
 #include <assert.h>
 #include <console/console.h>
 #include <cpu/intel/haswell/haswell.h>
-#include <delay.h>
 #include <device/pci_ops.h>
 #include <northbridge/intel/haswell/chip.h>
 #include <northbridge/intel/haswell/haswell.h>
 #include <northbridge/intel/haswell/raminit.h>
+#include <static.h>
 #include <string.h>
 #include <types.h>
 
@@ -20,7 +20,9 @@ struct task_entry {
 };
 
 static const struct task_entry cold_boot[] = {
-	{ collect_spd_info,           true, "PROCSPD",    },
+	{ collect_spd_info,                                       true, "PROCSPD",    },
+	{ initialise_mpll,                                        true, "INITMPLL",   },
+	{ convert_timings,                                        true, "CONVTIM",    },
 };
 
 /* Return a generic stepping value to make stepping checks simpler */

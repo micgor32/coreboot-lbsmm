@@ -9,15 +9,11 @@
 #include <device/path.h>
 #include <intelblocks/acpi.h>
 #include <soc/cpu.h>
+#include <stdio.h>
 #include <types.h>
 
 #define CPPC_NOM_FREQ_IDX	22
 #define CPPC_NOM_PERF_IDX	3
-
-enum cpu_perf_eff_type {
-	CPU_TYPE_EFF,
-	CPU_TYPE_PERF,
-};
 
 struct cpu_apic_info_type {
 	/*
@@ -112,18 +108,13 @@ void set_dev_core_type(void)
 static void acpi_get_cpu_nomi_perf(u16 *eff_core_nom_perf, u16 *perf_core_nom_perf)
 {
 	u8 max_non_turbo_ratio = cpu_get_max_non_turbo_ratio();
+	static u16 performance, efficient;
 
-	_Static_assert(CONFIG_SOC_INTEL_PERFORMANCE_CORE_SCALE_FACTOR != 0,
-		       "CONFIG_SOC_INTEL_PERFORMANCE_CORE_SCALE_FACTOR must not be zero");
+	if (!performance)
+		soc_read_core_scaling_factors(&performance, &efficient);
 
-	_Static_assert(CONFIG_SOC_INTEL_EFFICIENT_CORE_SCALE_FACTOR != 0,
-		       "CONFIG_SOC_INTEL_EFFICIENT_CORE_SCALE_FACTOR must not be zero");
-
-	*perf_core_nom_perf = (u16)((max_non_turbo_ratio *
-				CONFIG_SOC_INTEL_PERFORMANCE_CORE_SCALE_FACTOR) / 100);
-
-	*eff_core_nom_perf = (u16)((max_non_turbo_ratio *
-				CONFIG_SOC_INTEL_EFFICIENT_CORE_SCALE_FACTOR) / 100);
+	*perf_core_nom_perf = (u16)((max_non_turbo_ratio * performance) / 100);
+	*eff_core_nom_perf = (u16)((max_non_turbo_ratio * efficient) / 100);
 }
 
 static u16 acpi_get_cpu_nominal_freq(void)

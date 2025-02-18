@@ -3,6 +3,10 @@ fw_config
 		option STORAGE_UFS			0
 		option STORAGE_NVME			1
 	end
+	field WIFI_SAR_ID 31
+		option WIFI_SAR_ID_0			0
+		option WIFI_SAR_ID_1			1
+	end
 end
 
 chip soc/intel/alderlake
@@ -10,17 +14,28 @@ chip soc/intel/alderlake
 		.enable_fast_vmode = 1,
 	}"
 
-	register "sagv" = "SaGv_Enabled"
+	# Acoustic settings
+	register "acoustic_noise_mitigation" = "true"
+	register "slow_slew_rate[VR_DOMAIN_IA]" = "SLEW_FAST_4"
+	register "slow_slew_rate[VR_DOMAIN_GT]" = "SLEW_FAST_4"
+	register "fast_pkg_c_ramp_disable[VR_DOMAIN_IA]" = "1"
+	register "fast_pkg_c_ramp_disable[VR_DOMAIN_GT]" = "1"
 
-	register "pch_slp_a_min_assertion_width" = "SLP_A_ASSERTION_DEFAULT"
+	register "sagv" = "SaGv_Enabled"
 
 	# As per Intel Advisory doc#723158, the change is required to prevent possible
 	# display flickering issue.
 	register "disable_dynamic_tccold_handshake" = "true"
 
+	register "power_limits_config[RPL_P_282_242_142_15W_CORE]" = "{
+		.tdp_pl1_override = 18,
+		.tdp_pl2_override = 55,
+		.tdp_pl4 = 114,
+	}"
+
 	register "tcc_offset" = "6"	# TCC of 94
 
-	register "platform_pmax" = "145"
+	register "platform_pmax" = "122"
 
 	register "usb2_ports[0]" = "{
 		.enable = 1,
@@ -125,7 +140,7 @@ chip soc/intel/alderlake
 		.i2c[5] = {
 			.speed = I2C_SPEED_FAST,
 			.rise_time_ns = 650,
-			.fall_time_ns = 400,
+			.fall_time_ns = 200,
 			.data_hold_time_ns = 50,
 		},
 	}"
@@ -254,14 +269,17 @@ chip soc/intel/alderlake
 				}"
 
 				## Fan options
-				register "options.fan.fine_grained_control" = "1"
+				register "options.fan.fine_grained_control" = "true"
 				register "options.fan.step_size" = "2"
 
 				device generic 0 alias dptf_policy on end
 			end
 		end
 		device ref pcie4_0 on
-		# Enable CPU PCIE RP 1 using CLK 1
+			# Enable NVMe SSD using clk_src0 and clk_req1 mapping to hardware
+			# design. Due to inconsistency between PMC firmware and FSP, we need
+			# to set clk_src to clk_req number, not same as hardware mapping in
+			# coreboot. Then swap correct setting clksrc, clkreq in mFIT.
 			register "cpu_pcie_rp[CPU_RP(1)]" = "{
 				.clk_req = 1,
 				.clk_src = 1,
@@ -318,6 +336,7 @@ chip soc/intel/alderlake
 				device i2c 50 on end
 			end
 		end #I2C1
+		device ref i2c3 off end
 		device ref i2c5 on
 			chip drivers/i2c/hid
 				register "generic.hid" = ""ZNT0000""
@@ -351,6 +370,10 @@ chip soc/intel/alderlake
 				device pnp 0c09.0 on end
 			end
 		end
+		device ref sata off end
+		device ref pcie_rp8 off end
+		device ref pcie_rp9 off end
+		device ref gspi1 off end
 		device ref pmc hidden
 			chip drivers/intel/pmc_mux
 				device generic 0 on

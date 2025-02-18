@@ -8,6 +8,7 @@ romstage-y += romstage.c
 
 ramstage-y += ec.c
 ramstage-y += mainboard.c
+ramstage-$(CONFIG_FW_CONFIG) += fw_config.c
 
 smm-$(CONFIG_HAVE_NATIVE_SMI_HANDLER) += smihandler.c
 

@@ -14,6 +14,7 @@
 #include <console/console.h>
 #include <device/device.h>
 #include <device/soundwire.h>
+#include <stdio.h>
 #include <types.h>
 
 static char *gencurrent;
@@ -1880,7 +1881,6 @@ static void acpigen_write_dsm_uuid(struct dsm_uuid *id)
 	acpigen_write_return_singleton_buffer(0x0);
 
 	acpigen_write_if_end(); /* If (LEqual (Local0, ToUUID(uuid))) */
-
 }
 
 /*
@@ -2422,6 +2422,35 @@ void acpigen_write_create_dword_field(uint8_t op, size_t byte_offset, const char
 void acpigen_write_create_qword_field(uint8_t op, size_t byte_offset, const char *name)
 {
 	_create_field(CREATE_QWORD_OP, op, byte_offset, name);
+}
+
+static void _create_buffer_field(uint8_t aml_op, const char *src_buf, size_t byte_offset,
+	const char *field)
+{
+	acpigen_emit_byte(aml_op);
+	acpigen_emit_namestring(src_buf);
+	acpigen_write_integer(byte_offset);
+	acpigen_emit_namestring(field);
+}
+
+void acpigen_write_create_buffer_byte_field(const char *src_buf, size_t byte_offset, const char *field)
+{
+	_create_buffer_field(CREATE_BYTE_OP, src_buf, byte_offset, field);
+}
+
+void acpigen_write_create_buffer_word_field(const char *src_buf, size_t byte_offset, const char *field)
+{
+	_create_buffer_field(CREATE_WORD_OP, src_buf, byte_offset, field);
+}
+
+void acpigen_write_create_buffer_dword_field(const char *src_buf, size_t byte_offset, const char *field)
+{
+	_create_buffer_field(CREATE_DWORD_OP, src_buf, byte_offset, field);
+}
+
+void acpigen_write_create_buffer_qword_field(const char *src_buf, size_t byte_offset, const char *field)
+{
+	_create_buffer_field(CREATE_QWORD_OP, src_buf, byte_offset, field);
 }
 
 void acpigen_write_pct_package(const acpi_addr_t *perf_ctrl, const acpi_addr_t *perf_sts)

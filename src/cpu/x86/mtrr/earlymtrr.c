@@ -37,6 +37,9 @@ void set_var_mtrr(
 	/* FIXME: It only support 4G less range */
 	msr_t basem, maskm;
 
+	if (type == MTRR_TYPE_WRBACK && !is_cache_sets_power_of_two() && ENV_CACHE_AS_RAM)
+		printk(BIOS_ERR, "MTRR Error: Type %x may not be supported due to NEM limitation\n",
+			 type);
 	if (!IS_POWER_OF_2(size))
 		printk(BIOS_ERR, "MTRR Error: size %#x is not a power of two\n", size);
 	if (size < 4 * KiB)
@@ -91,8 +94,8 @@ int var_mtrr_set(struct var_mtrr_context *ctx, uintptr_t addr, size_t size, int 
 			return -1;
 		}
 
-		addr_lsb = fls(addr);
-		size_msb = fms(size);
+		addr_lsb = __ffs(addr);
+		size_msb = __fls(size);
 
 		/* All MTRR entries need to have their base aligned to the mask
 		   size. The maximum size is calculated by a function of the

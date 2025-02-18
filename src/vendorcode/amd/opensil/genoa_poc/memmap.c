@@ -12,7 +12,7 @@
 #include <cbmem.h>
 #include <amdblocks/memmap.h>
 
-#include "opensil.h"
+#include "../opensil.h"
 
 static const char *hole_info_type(MEMORY_HOLE_TYPES type)
 {
@@ -86,36 +86,14 @@ BOOT_STATE_INIT_ENTRY(BS_DEV_RESOURCES, BS_ON_ENTRY, print_memory_holes, NULL);
 // This assumes holes are allocated
 void add_opensil_memmap(struct device *dev, unsigned long *idx)
 {
-	ram_from_to(dev, (*idx)++, 0, 0xa0000);
-	mmio_from_to(dev, (*idx)++, 0xa0000, 0xc0000); // legacy VGA
-	reserved_ram_from_to(dev, (*idx)++, 0xc0000, 1 * MiB); // Option ROM
-
-	uint32_t mem_usable = (uintptr_t)cbmem_top();
-	uintptr_t early_reserved_dram_start, early_reserved_dram_end;
-	const struct memmap_early_dram *e = memmap_get_early_dram_usage();
-
-	early_reserved_dram_start = e->base;
-	early_reserved_dram_end = e->base + e->size;
-
-	// 1MB - bottom of DRAM reserved for early coreboot usage
-	ram_from_to(dev, (*idx)++, 1 * MiB, early_reserved_dram_start);
-
-	// DRAM reserved for early coreboot usage
-	reserved_ram_from_to(dev, (*idx)++, early_reserved_dram_start,
-			     early_reserved_dram_end);
-
-	// top of DRAM consumed early - low top usable RAM
-	// cbmem_top() accounts for low UMA and TSEG if they are used.
-	ram_from_to(dev, (*idx)++, early_reserved_dram_end,
-		    mem_usable);
-
 	// Account for UMA and TSEG
-	const uint32_t top_mem = ALIGN_DOWN(rdmsr(TOP_MEM).lo, 1 * MiB);
+	const uint32_t mem_usable = cbmem_top();
+	const uint32_t top_mem = ALIGN_DOWN(get_top_of_mem_below_4gb(), 1 * MiB);
 	if (mem_usable != top_mem)
 		reserved_ram_from_to(dev, (*idx)++, mem_usable, top_mem);
 
 	// Check if we're done
-	if (top_of_mem <= 0x100000000)
+	if (top_of_mem <= 4ULL * GiB)
 		return;
 
 	// Holes in upper DRAM
@@ -124,11 +102,11 @@ void add_opensil_memmap(struct device *dev, unsigned long *idx)
 	if (hole_info == NULL)
 		return;
 	uint64_t lowest_upper_hole_base = top_of_mem;
-	uint64_t highest_upper_hole_end = 0x100000000;
+	uint64_t highest_upper_hole_end = 4ULL * GiB;
 	for (int hole = 0; hole < n_holes; hole++) {
 		if (hole_info[hole].Type == MMIO)
 			continue;
-		if (hole_info[hole].Base < 0x100000000)
+		if (hole_info[hole].Base < 4ULL * GiB)
 			continue;
 		lowest_upper_hole_base = MIN(lowest_upper_hole_base, hole_info[hole].Base);
 		highest_upper_hole_end = MAX(highest_upper_hole_end, hole_info[hole].Base + hole_info[hole].Size);
@@ -138,7 +116,7 @@ void add_opensil_memmap(struct device *dev, unsigned long *idx)
 			reserved_ram_range(dev, (*idx)++, hole_info[hole].Base, hole_info[hole].Size);
 	}
 
-	ram_from_to(dev, (*idx)++, 0x100000000, lowest_upper_hole_base);
+	ram_from_to(dev, (*idx)++, 4ULL * GiB, lowest_upper_hole_base);
 
 	// Do we need this?
 	if (top_of_mem > highest_upper_hole_end)

@@ -26,6 +26,11 @@
 #define PMC_IPC_BIOS_RST_SUBID_PCI_ENUM_DONE	0
 #define PMC_IPC_BIOS_RST_CMPL_STS_PCI_ENUM	BIT(0)
 
+/* IPC command for accessing SoC registers */
+#define PMC_IPC_CMD_SOC_REG_ACC		0xAA
+#define PMC_IPC_CMD_SUBCMD_SOC_REG_RD	0x00
+#define PMC_IPC_CMD_REGID_SOC_QDF	0x03
+
 static struct chipset_power_state power_state;
 
 /* List of Minimum Assertion durations in microseconds */
@@ -89,7 +94,7 @@ static void migrate_power_state(int is_recovery)
 CBMEM_CREATION_HOOK(migrate_power_state);
 
 static void print_num_status_bits(int num_bits, uint32_t status,
-				  const char *const bit_names[])
+				  const char *const *bit_names)
 {
 	int i;
 
@@ -425,6 +430,9 @@ static int pmc_prev_sleep_state(const struct chipset_power_state *ps)
 
 		/* Clear SLP_TYP. */
 		pmc_write_pm1_control(ps->pm1_cnt & ~(SLP_TYP));
+
+		/* Clear PM1_STATUS */
+		pmc_clear_pm1_status();
 	}
 
 	prev_sleep_state = soc_prev_sleep_state(ps, prev_sleep_state);
@@ -433,6 +441,34 @@ static int pmc_prev_sleep_state(const struct chipset_power_state *ps)
 	pmc_clear_pmcon_pwr_failure_sts();
 
 	return prev_sleep_state;
+}
+
+static bool pmc_get_global_reset_sts_mmio(void)
+{
+	uint8_t *addr = pmc_mmio_regs();
+
+	return !!(read32p((uintptr_t)(addr + GEN_PMCON_A)) & GBL_RST_STS);
+}
+
+static bool pmc_get_global_reset_sts_pci(void)
+{
+#if defined(__SIMPLE_DEVICE__)
+	pci_devfn_t dev = PCI_DEV(0, PCI_SLOT(PCH_DEVFN_PMC), PCI_FUNC(PCH_DEVFN_PMC));
+#else
+	struct device *dev = pcidev_path_on_root(PCH_DEVFN_PMC);
+	if (!dev)
+		return false;
+#endif
+
+	return !!(pci_read_config32(dev, GEN_PMCON_A) & GBL_RST_STS);
+}
+
+static bool pmc_get_global_reset_sts(void)
+{
+	if (CONFIG(SOC_INTEL_MEM_MAPPED_PM_CONFIGURATION))
+		return pmc_get_global_reset_sts_mmio();
+	else
+		return pmc_get_global_reset_sts_pci();
 }
 
 void pmc_fill_pm_reg_info(struct chipset_power_state *ps)
@@ -444,6 +480,21 @@ void pmc_fill_pm_reg_info(struct chipset_power_state *ps)
 	ps->pm1_sts = inw(ACPI_BASE_ADDRESS + PM1_STS);
 	ps->pm1_en = inw(ACPI_BASE_ADDRESS + PM1_EN);
 	ps->pm1_cnt = pmc_read_pm1_control();
+
+	/*
+	 * Before system memory initialization, AP firmware should check the wake status
+	 * to determine if Intel CSE has reset the system and system sleep state (PM1_CNT)
+	 * holds a valid sleep entry?
+	 *
+	 * If not, then AP FW should force to take a S5 exit path (by programming the PM1_CNT)
+	 * register as per PM register initialization requirement for CSE.
+	 */
+	if (pmc_get_global_reset_sts() && (ps->pm1_sts & WAK_STS) && !(ps->pm1_cnt & SLP_TYP)) {
+		printk(BIOS_DEBUG, "Enforcing the S5 exit path\n");
+		uint32_t pm1_cnt_slp_type = SLP_TYP_S5 << SLP_TYP_SHIFT;
+		ps->pm1_cnt |= pm1_cnt_slp_type;
+		pmc_enable_pm1_control(pm1_cnt_slp_type);
+	}
 
 	printk(BIOS_DEBUG, "pm1_sts: %04x pm1_en: %04x pm1_cnt: %08x\n",
 	       ps->pm1_sts, ps->pm1_en, ps->pm1_cnt);
@@ -581,7 +632,7 @@ void pmc_gpe_init(void)
 {
 	uint32_t gpio_cfg = 0;
 	uint32_t gpio_cfg_reg;
-	uint8_t dw0, dw1, dw2;
+	uint8_t dw0 = 0, dw1 = 0, dw2 = 0;
 
 	/* Read PMC base address from soc. This is implemented in soc */
 	uintptr_t pmc_bar = soc_read_pmc_base();
@@ -605,8 +656,9 @@ void pmc_gpe_init(void)
 	 * Route the GPIOs to the GPE0 block. Determine that all values
 	 * are different, and if they aren't use the reset values.
 	 */
-	if (dw0 == dw1 || dw1 == dw2) {
-		printk(BIOS_INFO, "PMC: Using default GPE route.\n");
+	if (dw0 == dw1 || dw1 == dw2 || dw0 == dw2) {
+		printk(BIOS_WARNING, "PMC: Duplicate GPE DW register values detected; "
+		       "using default GPE route from MISCCFG register\n");
 		gpio_cfg = read32p(pmc_bar + GPIO_GPE_CFG);
 
 		dw0 = (gpio_cfg >> GPE0_DW_SHIFT(0)) & GPE0_DWX_MASK;
@@ -881,4 +933,49 @@ void pmc_send_bios_reset_pci_enum_done(void)
 			 PMC_IPC_BIOS_RST_SUBID_PCI_ENUM_DONE, 0);
 	if (pmc_send_ipc_cmd(cmd, &req, &rsp) != CB_SUCCESS)
 		printk(BIOS_ERR, "PMC: Failed sending PCI Enumeration Done Command\n");
+}
+
+char *retrieve_soc_qdf_info_via_pmc_ipc(void)
+{
+	struct pmc_ipc_buffer req = { 0 };
+	struct pmc_ipc_buffer rsp;
+	uint32_t cmd_reg;
+	int r;
+	static char qdf_info[5] = { 0 };
+
+	if (!CONFIG(SOC_QDF_DYNAMIC_READ_PMC))
+		return NULL;
+
+	req.buf[0] = PMC_IPC_CMD_REGID_SOC_QDF;
+	cmd_reg = pmc_make_ipc_cmd(PMC_IPC_CMD_SOC_REG_ACC,
+				PMC_IPC_CMD_SUBCMD_SOC_REG_RD,
+				PMC_IPC_BUF_COUNT);
+
+	r = pmc_send_ipc_cmd(cmd_reg, &req, &rsp);
+
+	if (r < 0 || rsp.buf[0] == 0) {
+		printk(BIOS_ERR, "%s: pmc_send_ipc_cmd failed or QDF not available.\n",
+				__func__);
+		return NULL;
+	}
+
+	qdf_info[0] = ((rsp.buf[0] >> 24) & 0xFF);
+	qdf_info[1] = ((rsp.buf[0] >> 16) & 0xFF);
+	qdf_info[2] = ((rsp.buf[0] >> 8) & 0xFF);
+	qdf_info[3] = (rsp.buf[0] & 0xFF);
+	qdf_info[4] = '\0';
+
+	return qdf_info;
+}
+
+/*
+ * This function reads and prints SoC QDF information using PMC interface
+ * if SOC_QDF_DYNAMIC_READ_PMC config is enabled.
+ */
+void pmc_dump_soc_qdf_info(void)
+{
+	char *qdf = retrieve_soc_qdf_info_via_pmc_ipc();
+
+	if (qdf != NULL)
+		printk(BIOS_INFO, "SoC QDF: %s\n", qdf);
 }

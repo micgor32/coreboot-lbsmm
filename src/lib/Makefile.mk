@@ -160,7 +160,6 @@ ramstage-$(CONFIG_GENERIC_GPIO_LIB) += gpio.c
 ramstage-$(CONFIG_GENERIC_UDELAY) += timer.c
 ramstage-y += b64_decode.c
 ramstage-$(CONFIG_ACPI_NHLT) += nhlt.c
-ramstage-$(CONFIG_FLATTENED_DEVICE_TREE) += device_tree.c
 ramstage-$(CONFIG_PAYLOAD_FIT_SUPPORT) += fit.c
 ramstage-$(CONFIG_PAYLOAD_FIT_SUPPORT) += fit_payload.c
 
@@ -315,7 +314,11 @@ RMODULE_LDFLAGS  := -z defs -Bsymbolic
 # rmdoule is named $(1).rmod
 define rmodule_link
 $(strip $(1)): $(strip $(2)) $$(COMPILER_RT_rmodules_$(3)) $(call src-to-obj,rmodules_$(3),src/lib/rmodule.ld) | $$(RMODTOOL)
-	$$(LD_rmodules_$(3)) $$(LDFLAGS_rmodules_$(3)) $(RMODULE_LDFLAGS) $($(1)-ldflags) -T $(call src-to-obj,rmodules_$(3),src/lib/rmodule.ld) -o $$@ --whole-archive --start-group $(filter-out %.ld,$(2)) --end-group
+ifeq ($(CONFIG_LTO),y)
+	$$(CC_rmodules_$(3)) $$(CPPFLAGS_rmodules_$(3)) $$(CFLAGS_rmodules_$(3)) $$(LDFLAGS_rmodules_$(3):%=-Wl,%) $$(COMPILER_RT_FLAGS_rmodules_$(3):%=-Wl,%) $(RMODULE_LDFLAGS) $($(1)-ldflags:%=-Wl,%) -T $(call src-to-obj,rmodules_$(3),src/lib/rmodule.ld) -o $$@ -Wl,--whole-archive -Wl,--start-group $(filter-out %.ld,$(2)) -Wl,--no-whole-archive $$(COMPILER_RT_rmodules_$(3)) -Wl,--end-group
+else
+	$$(LD_rmodules_$(3)) $$(LDFLAGS_rmodules_$(3)) $(RMODULE_LDFLAGS) $($(1)-ldflags) -T $(call src-to-obj,rmodules_$(3),src/lib/rmodule.ld) -o $$@ --whole-archive --start-group $(filter-out %.ld,$(2)) --no-whole-archive $$(COMPILER_RT_rmodules_$(3)) --end-group
+endif
 	$$(NM_rmodules_$(3)) -n $$@ > $$(basename $$@).map
 endef
 

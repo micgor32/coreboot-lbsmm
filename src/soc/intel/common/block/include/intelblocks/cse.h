@@ -383,6 +383,10 @@ enum rst_req_type {
 	CSE_RESET_ONLY = 3,
 };
 
+enum cse_fw_sts_current_pm_event {
+	PWR_CYCLE_RESET_CMOFF = 0xb,
+};
+
 /*
  * Sends GLOBAL_RESET_REQ cmd to CSE with reset type GLOBAL_RESET.
  * Returns 0 on failure and 1 on success.
@@ -442,11 +446,6 @@ int cse_hmrfpo_get_status(void);
  * Queries and logs ME firmware version
  */
 void print_me_fw_version(void *unused);
-
-/*
- * Queries and gets ME firmware version
- */
-enum cb_err get_me_fw_version(struct me_fw_ver_resp *resp);
 
 /*
  * Checks current working operation state is normal or not.
@@ -616,4 +615,18 @@ void cse_fill_bp_info(void);
  * Returns true if an update is required, false otherwise
  */
 bool is_cse_fw_update_required(void);
+
+/*
+ * Check if the CSE firmware is booting from RW slot.
+ * Returns true if CSE is booting from RW slot, false otherwise
+ */
+bool is_cse_boot_to_rw(void);
+
+/*
+ * Check if the CSE FW Status Current Power Management Event indicates that the
+ * host came out of cold reset.
+ * Returns true if the host came out of a cold reset, false otherwise.
+ */
+bool cse_check_host_cold_reset(void);
+
 #endif // SOC_INTEL_COMMON_CSE_H

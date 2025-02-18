@@ -91,6 +91,9 @@ enum {
 	LB_TAG_PLD_SMM_SMRAM            = 0x0051,
 	LB_TAG_PLD_SPI_FLASH_INFO       = 0x0052,
 	LB_TAG_PLD_S3_COMMUNICATION     = 0x0054,
+	LB_TAG_EFI_FW_INFO		= 0x0045,
+	LB_TAG_CAPSULE			= 0x0046,
+	LB_TAG_CFR_ROOT			= 0x0047,
 	/* The following options are CMOS-related */
 	LB_TAG_CMOS_OPTION_TABLE	= 0x00c8,
 	LB_TAG_OPTION			= 0x00c9,
@@ -656,6 +659,31 @@ struct lb_acpi_rsdp {
 	uint32_t tag;
 	uint32_t size;
 	lb_uint64_t rsdp_pointer; /* Address of the ACPI RSDP */
+};
+
+/*
+ * Machine-friendly version of a system firmware component.  A component is
+ * identified by a GUID.  coreboot is an obvious main component but there could
+ * be others (like EC) which should get their own instances of the tag.
+ *
+ * The main consumer of this information is UEFI firmware but something else
+ * could reuse it too.
+ *
+ * Larger number in a version field corresponds to a more recent version.
+ */
+struct lb_efi_fw_info {
+	uint32_t tag;
+	uint32_t size;
+	uint8_t guid[16];			/* Called "firmware class" in UEFI */
+	uint32_t version;			/* Current version */
+	uint32_t lowest_supported_version;	/* Lowest allowed version for downgrades */
+	uint32_t fw_size;			/* Size of firmware in bytes */
+} __packed;
+struct lb_cfr {
+	uint32_t tag;
+	uint32_t size;
+	uint32_t checksum;	/* Checksum of the variable payload. */
+	/* struct lb_cfr_option_form		forms[] */
 };
 
 #endif

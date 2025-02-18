@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
 chip soc/intel/alderlake
 	device domain 0 on
 		subsystemid 0x1558 0x5630 inherit
@@ -63,6 +65,7 @@ chip soc/intel/alderlake
 				.clk_src = 1,
 				.clk_req = 1,
 				.flags = PCIE_RP_LTR | PCIE_RP_AER,
+				.pcie_rp_detect_timeout_ms = 50,
 			}"
 		end
 		device ref pcie_rp9 on

@@ -3,6 +3,7 @@
 #ifndef SPD_BIN_H
 #define SPD_BIN_H
 
+#include <device/dram/ddr3.h>
 #include <stdint.h>
 #include <commonlib/region.h>
 
@@ -27,11 +28,11 @@
 #define DDR3_BUS_DEV_WIDTH	8
 #define DDR4_ORGANIZATION	12
 #define DDR4_BUS_DEV_WIDTH	13
-#define DDR3_SPD_PART_OFF	128
-#define DDR3_SPD_PART_LEN	18
+#define DDR3_SPD_PART_OFF	SPD_DDR3_PART_NUM
+#define DDR3_SPD_PART_LEN	SPD_DDR3_PART_LEN
 #define DDR3_SPD_SN_OFF		122
-#define LPDDR3_SPD_PART_OFF	128
-#define LPDDR3_SPD_PART_LEN	18
+#define LPDDR3_SPD_PART_OFF	SPD_DDR3_PART_NUM
+#define LPDDR3_SPD_PART_LEN	SPD_DDR3_PART_LEN
 #define DDR4_SPD_PART_OFF	329
 #define DDR4_SPD_PART_LEN	20
 #define DDR4_SPD_SN_OFF		325
@@ -47,6 +48,10 @@ void print_spd_info(uint8_t spd[]);
 uintptr_t spd_cbfs_map(u8 spd_index);
 void dump_spd_info(struct spd_block *blk);
 void get_spd_smbus(struct spd_block *blk);
+
+int spd_read_byte(u8 slave_addr, u8 bus_addr);
+int spd_read_word(u8 slave_addr, u8 bus_addr);
+void spd_write_byte(u8 slave_addr, u8 bus_addr, u8 value);
 
 /*
  * get_spd_sn returns the SODIMM serial number. It only supports DDR3 and DDR4.

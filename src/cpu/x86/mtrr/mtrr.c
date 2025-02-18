@@ -20,6 +20,7 @@
 #include <cpu/x86/mtrr.h>
 #include <device/device.h>
 #include <device/pci_ids.h>
+#include <lib.h>
 #include <memrange.h>
 #include <string.h>
 #include <types.h>
@@ -95,22 +96,6 @@ static void enable_var_mtrr(unsigned char deftype)
 	msr.lo |= MTRR_DEF_TYPE_EN | deftype;
 	wrmsr(MTRR_DEF_TYPE_MSR, msr);
 }
-
-#define MTRR_VERBOSE_LEVEL BIOS_NEVER
-
-/* MTRRs are at a 4KiB granularity. */
-#define RANGE_SHIFT 12
-#define ADDR_SHIFT_TO_RANGE_SHIFT(x) \
-	(((x) > RANGE_SHIFT) ? ((x) - RANGE_SHIFT) : RANGE_SHIFT)
-#define PHYS_TO_RANGE_ADDR(x) ((x) >> RANGE_SHIFT)
-#define RANGE_TO_PHYS_ADDR(x) (((resource_t)(x)) << RANGE_SHIFT)
-
-/* Helpful constants. */
-#define RANGE_1MB PHYS_TO_RANGE_ADDR(1ULL << 20)
-#define RANGE_4GB (1ULL << (ADDR_SHIFT_TO_RANGE_SHIFT(32)))
-
-#define MTRR_ALGO_SHIFT (8)
-#define MTRR_TAG_MASK ((1 << MTRR_ALGO_SHIFT) - 1)
 
 static inline uint64_t range_entry_base_mtrr_addr(struct range_entry *r)
 {
@@ -443,33 +428,6 @@ static void prep_var_mtrr(struct var_mtrr_state *var_state,
 	regs->mask.hi = rsize >> 32;
 }
 
-/*
- * fls64: find least significant bit set in a 64-bit word
- * As samples, fls64(0x0) = 64; fls64(0x4400) = 10;
- * fls64(0x40400000000) = 34.
- */
-static uint32_t fls64(uint64_t x)
-{
-	uint32_t lo = (uint32_t)x;
-	if (lo)
-		return fls(lo);
-	uint32_t hi = x >> 32;
-	return fls(hi) + 32;
-}
-
-/*
- * fms64: find most significant bit set in a 64-bit word
- * As samples, fms64(0x0) = 0; fms64(0x4400) = 14;
- * fms64(0x40400000000) = 42.
- */
-static uint32_t fms64(uint64_t x)
-{
-	uint32_t hi = (uint32_t)(x >> 32);
-	if (!hi)
-		return fms((uint32_t)x);
-	return fms(hi) + 32;
-}
-
 static void calc_var_mtrr_range(struct var_mtrr_state *var_state,
 				uint64_t base, uint64_t size, int mtrr_type)
 {
@@ -478,8 +436,8 @@ static void calc_var_mtrr_range(struct var_mtrr_state *var_state,
 		uint32_t size_msb;
 		uint64_t mtrr_size;
 
-		addr_lsb = fls64(base);
-		size_msb = fms64(size);
+		addr_lsb = __ffs64(base);
+		size_msb = __fls64(size);
 
 		/* All MTRR entries need to have their base aligned to the mask
 		 * size. The maximum size is calculated by a function of the
@@ -532,7 +490,7 @@ static uint64_t optimize_var_mtrr_hole(const uint64_t base,
 	best_count = var_state.mtrr_index;
 	var_state.mtrr_index = 0;
 
-	for (align = fls(hole) + 1; align <= fms(hole); ++align) {
+	for (align = __ffs(hole) + 1; align <= __fls(hole); ++align) {
 		const uint64_t hole_end = ALIGN_UP((uint64_t)hole, 1 << align);
 		if (hole_end > limit)
 			break;
@@ -624,7 +582,7 @@ static void calc_var_mtrrs_with_hole(struct var_mtrr_state *var_state,
 		 */
 		next = memranges_next_entry(var_state->addr_space, r);
 		if (next == NULL) {
-			b2_limit = ALIGN_UP((uint64_t)b1, 1 << fms(b1));
+			b2_limit = ALIGN_UP((uint64_t)b1, 1 << __fls(b1));
 			/* If it's the last range above 4GiB, we won't carve
 			   the hole out. If an OS wanted to move MMIO there,
 			   it would have to override the MTRR setting using

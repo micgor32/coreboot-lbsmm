@@ -458,6 +458,9 @@ typedef struct acpi_madt {
 	u32 flags;			/* Multiple APIC flags */
 } __packed acpi_madt_t;
 
+/* MADT Feature Flags */
+#define ACPI_MADT_PCAT_COMPAT	(1 << 0)
+
 /*
  * LPIT (Low Power Idle Table)
  * Conforms to "Intel Low Power S0 Idle" specification, rev 002 from July 2017.
@@ -635,7 +638,7 @@ typedef struct dmar_entry {
 	u16 type;
 	u16 length;
 	u8 flags;
-	u8 reserved;
+	u8 size;
 	u16 segment;
 	u64 bar;
 } __packed dmar_entry_t;
@@ -722,6 +725,10 @@ typedef struct acpi_madt_lapic {
 } __packed acpi_madt_lapic_t;
 
 #define ACPI_MADT_MAX_LAPIC_ID		0xfe
+
+/* MADT Local APIC Feature Flags */
+#define ACPI_MADT_LAPIC_ENABLED		(1 << 0)
+#define ACPI_MADT_LAPIC_ONLINE_CAPABLE	(1 << 1)
 
 /* MADT: Local APIC NMI Structure */
 typedef struct acpi_madt_lapic_nmi {
@@ -1773,6 +1780,7 @@ unsigned long acpi_create_madt_one_lapic(unsigned long current, u32 cpu, u32 api
 
 unsigned long acpi_create_madt_lapic_nmis(unsigned long current);
 
+void platform_fill_gicc(acpi_madt_gicc_t *gicc);
 uintptr_t platform_get_gicd_base(void);
 uintptr_t platform_get_gicr_base(void);
 int platform_get_gic_its(uintptr_t **base);
@@ -1842,8 +1850,10 @@ unsigned long acpi_16550_mmio32_write_dbg2_uart(acpi_rsdp_t *rsdp, unsigned long
 
 void acpi_create_dmar(acpi_dmar_t *dmar, enum dmar_flags flags,
 		      unsigned long (*acpi_fill_dmar)(unsigned long));
-unsigned long acpi_create_dmar_drhd(unsigned long current, u8 flags,
+unsigned long acpi_create_dmar_drhd_4k(unsigned long current, u8 flags,
 				    u16 segment, u64 bar);
+unsigned long acpi_create_dmar_drhd(unsigned long current, u8 flags,
+				    u16 segment, u64 bar, size_t size);
 unsigned long acpi_create_dmar_rmrr(unsigned long current, u16 segment,
 				    u64 bar, u64 limit);
 unsigned long acpi_create_dmar_atsr(unsigned long current, u8 flags,

@@ -2,6 +2,7 @@
 
 #include <baseboard/variants.h>
 #include <soc/gpio.h>
+#include <fw_config.h>
 
 /* Pad configuration in ramstage */
 static const struct pad_config override_gpio_table[] = {

@@ -25,7 +25,9 @@
 #include <device/device.h>
 #include <device/mmio.h>
 #include <device/pci.h>
+#include <drivers/crb/tpm.h>
 #include <drivers/uart/pl011.h>
+#include <security/tpm/tss.h>
 #include <string.h>
 #include <types.h>
 #include <version.h>
@@ -205,7 +207,7 @@ static void *get_tcpa_log(u32 *size)
 
 static void acpi_create_tcpa(acpi_header_t *header, void *unused)
 {
-	if (!CONFIG(TPM1))
+	if (tlcl_get_family() != TPM_1)
 		return;
 
 	acpi_tcpa_t *tcpa = (acpi_tcpa_t *)header;
@@ -251,7 +253,7 @@ static void *get_tpm2_log(u32 *size)
 
 static void acpi_create_tpm2(acpi_header_t *header, void *unused)
 {
-	if (!CONFIG(TPM2))
+	if (tlcl_get_family() != TPM_2)
 		return;
 
 	acpi_tpm2_t *tpm2 = (acpi_tpm2_t *)header;
@@ -271,7 +273,7 @@ static void acpi_create_tpm2(acpi_header_t *header, void *unused)
 
 	/* Hard to detect for coreboot. Just set it to 0 */
 	tpm2->platform_class = 0;
-	if (CONFIG(CRB_TPM)) {
+	if (CONFIG(CRB_TPM) && crb_tpm_is_active()) {
 		/* Must be set to 7 for CRB Support */
 		tpm2->control_area = CONFIG_CRB_TPM_BASE_ADDRESS + 0x40;
 		tpm2->start_method = 7;
@@ -302,7 +304,10 @@ static void acpi_ssdt_write_cbtable(void)
 	acpigen_write_device("CTBL");
 	acpigen_write_coreboot_hid(COREBOOT_ACPI_ID_CBTABLE);
 	acpigen_write_name_integer("_UID", 0);
-	acpigen_write_STA(ACPI_STATUS_DEVICE_ALL_ON);
+	if (CONFIG(EC_GOOGLE_CHROMEEC))
+		acpigen_write_STA(ACPI_STATUS_DEVICE_ALL_ON);
+	else
+		acpigen_write_STA(ACPI_STATUS_DEVICE_HIDDEN_ON);
 	acpigen_write_name("_CRS");
 	acpigen_write_resourcetemplate_header();
 	acpigen_resource_consumer_mmio(base, base + size - 1,
@@ -1487,6 +1492,16 @@ unsigned long write_acpi_tables(const unsigned long start)
 		current = fw;
 		current = acpi_align_current(current);
 		if (rsdp->xsdt_address == 0) {
+			acpi_rsdt_t *existing_rsdt = (acpi_rsdt_t *)(uintptr_t)rsdp->rsdt_address;
+
+			/*
+			 * Qemu only provides a smaller ACPI 1.0 RSDP, thus
+			 * allocate a bigger ACPI 2.0 RSDP structure.
+			 */
+			rsdp = (acpi_rsdp_t *)current;
+			current += sizeof(acpi_rsdp_t);
+			coreboot_rsdp = (uintptr_t)rsdp;
+
 			xsdt = (acpi_xsdt_t *)current;
 			current += sizeof(acpi_xsdt_t);
 			current = acpi_align_current(current);
@@ -1495,7 +1510,6 @@ unsigned long write_acpi_tables(const unsigned long start)
 			 * Qemu only creates an RSDT.
 			 * Add an XSDT based on the existing RSDT entries.
 			 */
-			acpi_rsdt_t *existing_rsdt = (acpi_rsdt_t *)(uintptr_t)rsdp->rsdt_address;
 			acpi_write_rsdp(rsdp, existing_rsdt, xsdt, oem_id);
 			acpi_write_xsdt(xsdt, oem_id, oem_table_id);
 			/*
@@ -1504,7 +1518,6 @@ unsigned long write_acpi_tables(const unsigned long start)
 			 */
 			for (int i = 0; existing_rsdt->entry[i]; i++)
 				acpi_add_table(rsdp, (void *)(uintptr_t)existing_rsdt->entry[i]);
-
 		}
 
 		/* Add BOOT0000 for Linux google firmware driver */
@@ -1536,7 +1549,7 @@ unsigned long write_acpi_tables(const unsigned long start)
 
 		acpi_add_table(rsdp, ssdt);
 
-		return fw;
+		return current;
 	}
 
 	dsdt_file = cbfs_map(CONFIG_CBFS_PREFIX "/dsdt.aml", &dsdt_size);

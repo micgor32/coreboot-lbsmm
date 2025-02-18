@@ -11,6 +11,7 @@
 #include <soc/pcie.h>
 #include <soc/romstage.h>
 #include <soc/soc_chip.h>
+#include <static.h>
 
 static void soc_memory_init_params(FSP_M_CONFIG *m_cfg,
 		const struct soc_intel_jasperlake_config *config)
@@ -96,7 +97,7 @@ static void soc_memory_init_params(FSP_M_CONFIG *m_cfg,
 	m_cfg->SmbusEnable = config->SmbusEnable;
 
 	/* Set debug probe type */
-	m_cfg->PlatformDebugConsent = CONFIG_SOC_INTEL_JASPERLAKE_DEBUG_CONSENT;
+	m_cfg->PlatformDebugConsent = CONFIG_SOC_INTEL_COMMON_DEBUG_CONSENT;
 
 	/* VT-d config */
 	m_cfg->VtdDisable = 0;
@@ -142,6 +143,12 @@ static void soc_memory_init_params(FSP_M_CONFIG *m_cfg,
 	 * and rely on GPIO settings programmed before moved to FSP.
 	 */
 	m_cfg->GpioOverride = 1;
+
+	/* crashLog config */
+	if (CONFIG(SOC_INTEL_CRASHLOG)) {
+		m_cfg->CpuCrashLogDevice = 1;
+		m_cfg->CpuCrashLogEnable = 1;
+	}
 }
 
 void platform_fsp_memory_init_params_cb(FSPM_UPD *mupd, uint32_t version)

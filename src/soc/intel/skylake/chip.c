@@ -22,12 +22,13 @@
 #include <soc/intel/common/vbt.h>
 #include <soc/interrupt.h>
 #include <soc/iomap.h>
-#include <soc/irq.h>
 #include <soc/itss.h>
+#include <soc/irq.h>
 #include <soc/pci_devs.h>
 #include <soc/ramstage.h>
 #include <soc/systemagent.h>
 #include <soc/usb.h>
+#include <static.h>
 #include <string.h>
 #include <types.h>
 
@@ -529,5 +530,7 @@ __weak void mainboard_silicon_init_params(FSP_S_CONFIG *params)
 /* Handle FSP logo params */
 void soc_load_logo(FSPS_UPD *supd)
 {
-	bmp_load_logo(&supd->FspsConfig.LogoPtr, &supd->FspsConfig.LogoSize);
+	size_t logo_size;
+	supd->FspsConfig.LogoPtr = (uint32_t)(uintptr_t)bmp_load_logo(&logo_size);
+	supd->FspsConfig.LogoSize = (uint32_t)logo_size;
 }

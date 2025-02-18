@@ -19,7 +19,6 @@ static void fsp_assign_vbios_upds(FSP_S_CONFIG *scfg)
 		scfg->vbios_buffer = 0;
 		printk(BIOS_SPEW, "%s: using VBIOS cache; skipping GOP driver.\n", __func__);
 		return;
-
 	}
 	printk(BIOS_SPEW, "%s: not using VBIOS cache; running GOP driver.\n", __func__);
 	scfg->vbios_buffer = CONFIG(RUN_FSP_GOP) ? PCI_VGA_RAM_IMAGE_START : 0;
@@ -56,6 +55,6 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 
 void soc_load_logo(FSPS_UPD *supd)
 {
-	uint32_t logo_size;
-	bmp_load_logo(&supd->FspsConfig.logo_bmp_buffer, &logo_size);
+	size_t logo_size;
+	supd->FspsConfig.logo_bmp_buffer = (uint32_t)(uintptr_t)bmp_load_logo(&logo_size);
 }

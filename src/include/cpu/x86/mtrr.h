@@ -8,6 +8,22 @@
 #include <arch/cpu.h>
 #endif
 
+#define MTRR_VERBOSE_LEVEL BIOS_NEVER
+
+/* MTRRs are at a 4KiB granularity. */
+#define RANGE_SHIFT 12
+#define ADDR_SHIFT_TO_RANGE_SHIFT(x) \
+	(((x) > RANGE_SHIFT) ? ((x) - RANGE_SHIFT) : RANGE_SHIFT)
+#define PHYS_TO_RANGE_ADDR(x) ((x) >> RANGE_SHIFT)
+#define RANGE_TO_PHYS_ADDR(x) (((resource_t)(x)) << RANGE_SHIFT)
+
+/* Helpful constants. */
+#define RANGE_1MB PHYS_TO_RANGE_ADDR(1ULL << 20)
+#define RANGE_4GB (1ULL << (ADDR_SHIFT_TO_RANGE_SHIFT(32)))
+
+#define MTRR_ALGO_SHIFT (8)
+#define MTRR_TAG_MASK ((1 << MTRR_ALGO_SHIFT) - 1)
+
 /*  These are the region types  */
 #define MTRR_TYPE_UNCACHEABLE		0
 #define MTRR_TYPE_WRCOMB		1
@@ -61,6 +77,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <lib.h>
 
 /*
  * The MTRR code has some side effects that the callers should be aware for.
@@ -128,29 +145,11 @@ int var_mtrr_set(struct var_mtrr_context *ctx, uintptr_t addr, size_t size, int 
 void commit_mtrr_setup(const struct var_mtrr_context *ctx);
 void postcar_mtrr_setup(void);
 
-/* fms: find most significant bit set, stolen from Linux Kernel Source. */
-static inline unsigned int fms(unsigned int x)
+static inline uint64_t calculate_var_mtrr_size(uint64_t mask)
 {
-	unsigned int r;
-
-	__asm__("bsrl %1,%0\n\t"
-		"jnz 1f\n\t"
-		"movl $0,%0\n"
-		"1:" : "=r" (r) : "mr" (x));
-	return r;
+	return 1 << (__ffs64(mask >> RANGE_SHIFT) + RANGE_SHIFT);
 }
 
-/* fls: find least significant bit set */
-static inline unsigned int fls(unsigned int x)
-{
-	unsigned int r;
-
-	__asm__("bsfl %1,%0\n\t"
-		"jnz 1f\n\t"
-		"movl $32,%0\n"
-		"1:" : "=r" (r) : "mr" (x));
-	return r;
-}
 #endif /* !defined(__ASSEMBLER__) */
 
 /* Align up/down to next power of 2, suitable for assembler

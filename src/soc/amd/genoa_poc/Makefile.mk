@@ -21,7 +21,9 @@ ramstage-y	+= root_complex.c
 ramstage-y	+= smihandler.c
 ramstage-y	+= mca.c
 
+smm-y		+= root_complex.c
 smm-y		+= smihandler.c
+smm-$(CONFIG_DEBUG_SMI) += uart.c
 
 CPPFLAGS_common += -I$(src)/soc/amd/genoa_poc/acpi
 CPPFLAGS_common += -I$(src)/soc/amd/genoa_poc/include

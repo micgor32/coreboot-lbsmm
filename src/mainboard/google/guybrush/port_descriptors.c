@@ -5,6 +5,7 @@
 #include <device/pci_def.h>
 #include <gpio.h>
 #include <soc/platform_descriptors.h>
+#include <static.h>
 #include <types.h>
 
 /* All PCIe Resets are handled in coreboot */
@@ -33,8 +34,8 @@ static fsp_dxio_descriptor guybrush_czn_dxio_descriptors[] = {
 		.device_number = PCI_SLOT(SD_DEVFN),
 		.function_number = PCI_FUNC(SD_DEVFN),
 		.link_aspm = ASPM_L1,
-		.link_aspm_L1_1 = true,
-		.link_aspm_L1_2 = true,
+		.link_aspm_L1_1 = false,
+		.link_aspm_L1_2 = false,
 		.turn_off_unused_lanes = true,
 		.clk_req = CLK_REQ1,
 		.gpio_group_id = GPIO_69,

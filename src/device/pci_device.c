@@ -570,7 +570,7 @@ void pci_domain_read_resources(struct device *dev)
 	 * one big range from cbmem_top to the configured limit.
 	 */
 	res = new_resource(dev, IOINDEX_SUBTRACTIVE(1, 0));
-	res->base  = (uintptr_t)cbmem_top();
+	res->base  = cbmem_top();
 	res->limit = CONFIG_DOMAIN_RESOURCE_32BIT_LIMIT - 1;
 	res->flags = IORESOURCE_MEM | IORESOURCE_SUBTRACTIVE |
 		     IORESOURCE_ASSIGNED;
@@ -1346,6 +1346,24 @@ uint16_t pci_find_cap_recursive(const struct device *dev, uint16_t cap)
 }
 
 /**
+ * Returns if the device support PMEs.
+ *
+ * @param dev Pointer to the device structure.
+ * @return Returns true when the device support PMEs. The PME generation can be
+ *  disabled though.
+ */
+bool pci_has_pme_pin(const struct device *dev)
+{
+	const uint16_t cap = pci_find_capability(dev, PCI_CAP_ID_PM);
+	if (!cap)
+		return false;
+
+	const uint16_t pmecap = pci_read_config16(dev, cap + PCI_PM_PMC);
+
+	return !!(pmecap & PCI_PM_CAP_PME);
+}
+
+/**
  * PCI devices that are marked as "hidden" do not get probed. However, the same
  * initialization logic is still performed as if it were. This is useful when
  * devices would like to be described in the devicetree.cb file, and/or present
@@ -1491,7 +1509,6 @@ void pci_scan_bus(struct bus *bus, unsigned int min_devfn,
 
 	prev = &bus->children;
 	for (dev = bus->children; dev; dev = dev->sibling) {
-
 		/*
 		 * If static device is not PCI then enable it here and don't
 		 * treat it as a leftover device.
@@ -1851,7 +1868,6 @@ void pci_assign_irqs(struct device *dev, const unsigned char pIntAtoD[4])
 	slot = dev->path.pci.devfn >> 3;
 
 	for (; dev ; dev = dev->sibling) {
-
 		if (dev->path.pci.devfn >> 3 != slot)
 			break;
 

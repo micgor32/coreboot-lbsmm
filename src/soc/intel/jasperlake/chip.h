@@ -58,7 +58,6 @@ static const struct {
 };
 
 struct soc_intel_jasperlake_config {
-
 	/* Common struct containing soc config data required by common code */
 	struct soc_intel_common_config common_soc_config;
 
@@ -109,11 +108,7 @@ struct soc_intel_jasperlake_config {
 		SaGv_Enabled,
 	} SaGv;
 
-	/* Rank Margin Tool
-	 *
-	 * true: Enable
-	 * false: Disable
-	 */
+	/* Rank Margin Tool */
 	bool RMT;
 
 	/* USB related */
@@ -157,6 +152,9 @@ struct soc_intel_jasperlake_config {
 	/* Probe CLKREQ# signal before enabling CLKREQ# based power management.*/
 	bool PcieRpClkReqDetect[CONFIG_MAX_ROOT_PORTS];
 
+	/* PCIe LTR */
+	bool PcieRpLtrEnable[CONFIG_MAX_ROOT_PORTS];
+
 	/* PCIe RP L1 substate */
 	enum L1_substates_control PcieRpL1Substates[CONFIG_MAX_ROOT_PORTS];
 
@@ -179,7 +177,6 @@ struct soc_intel_jasperlake_config {
 	/* Gfx related */
 	bool SkipExtGfxScan;
 
-	/* Enable/Disable EIST. 1b:Enabled, 0b:Disabled */
 	bool eist_enable;
 
 	/* Enable C6 DRAM */
@@ -230,9 +227,6 @@ struct soc_intel_jasperlake_config {
 	/* Enable Pch iSCLK */
 	bool pch_isclk;
 
-	/* CNVi BT Audio Offload: Enable/Disable BT Audio Offload. */
-	bool CnviBtAudioOffload;
-
 	/* Tcss */
 	bool TcssXhciEn;
 	bool TcssXdciEn;
@@ -264,10 +258,8 @@ struct soc_intel_jasperlake_config {
 	uint8_t DdiPortAConfig;
 	uint8_t DdiPortBConfig;
 
-	/* HDP config
-	 *
-	 * true: Enable HDB
-	 * false: Disable HDP
+	/*
+	 * HDP config
 	 */
 	bool DdiPortAHpd;
 	bool DdiPortBHpd;
@@ -277,10 +269,8 @@ struct soc_intel_jasperlake_config {
 	bool DdiPort3Hpd;
 	bool DdiPort4Hpd;
 
-	/* DDC config
-	 *
-	 * true: Enable DDC
-	 * false: Disable DDC
+	/*
+	 * DDC config
 	 */
 	bool DdiPortADdc;
 	bool DdiPortBDdc;
@@ -412,9 +402,6 @@ struct soc_intel_jasperlake_config {
 
 	/*
 	 * Enable or Disable Acoustic Noise Mitigation feature.
-	 *
-	 * false: Disabled
-	 * true: Enabled
 	 */
 	bool AcousticNoiseMitigation;
 

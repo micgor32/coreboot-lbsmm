@@ -49,10 +49,9 @@ modules:
 * sphinx
 * recommonmark
 * sphinx_rtd_theme
-* sphinxcontrib-ditaa
 
 The following combination of versions has been tested: sphinx 2.3.1,
-recommonmark 0.6.0, sphinx_rtd_theme 0.4.3 and sphinxcontrib-ditaa 0.7.
+recommonmark 0.6.0, and sphinx_rtd_theme 0.4.3.
 
 Now change into the `Documentation` folder in the coreboot directory and run
 this command in there
@@ -99,7 +98,7 @@ To reference documents use the TOC tree or inline RST code.
 Under Sphinx markdown tables are not supported. Therefore you can use following
 code block to write tables in reStructuredText and embed them into the markdown:
 
-    ```eval_rst
+    ```{eval-rst}
     +------------+------------+-----------+
     | Header 1   | Header 2   | Header 3  |
     +============+============+===========+
@@ -144,7 +143,7 @@ you'll see the following warning:
 You can import CSV files and let sphinx automatically convert them to human
 readable tables, using the following reStructuredText snipped:
 
-    ```eval_rst
+    ```{eval-rst}
     .. csv-table::
        :header: "Key", "Value"
        :file: keyvalues.csv

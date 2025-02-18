@@ -743,6 +743,8 @@ int cbfs_add_entry(struct cbfs_image *image, struct buffer *buffer,
 
 	uint32_t entry_type;
 	uint32_t addr, addr_next;
+	uint32_t entry_size;
+	uint32_t max_null_entry_size = 0;
 	struct cbfs_file *entry, *next;
 	uint32_t need_size;
 	uint32_t header_size = be32toh(header->offset);
@@ -766,9 +768,11 @@ int cbfs_add_entry(struct cbfs_image *image, struct buffer *buffer,
 		addr = cbfs_get_entry_addr(image, entry);
 		next = cbfs_find_next_entry(image, entry);
 		addr_next = cbfs_get_entry_addr(image, next);
+		entry_size = addr_next - addr;
+		max_null_entry_size = MAX(max_null_entry_size, entry_size);
 
 		DEBUG("cbfs_add_entry: space at 0x%x+0x%x(%d) bytes\n",
-		      addr, addr_next - addr, addr_next - addr);
+		      addr, entry_size, entry_size);
 
 		/* Will the file fit? Don't yet worry if we have space for a new
 		 * "empty" entry. We take care of that later.
@@ -803,7 +807,7 @@ int cbfs_add_entry(struct cbfs_image *image, struct buffer *buffer,
 		}
 
 		DEBUG("section 0x%x+0x%x for content_offset 0x%x.\n",
-		      addr, addr_next - addr, content_offset);
+		      addr, entry_size, content_offset);
 
 		if (cbfs_add_entry_at(image, entry, buffer->data,
 				      content_offset, header, len_align) == 0) {
@@ -812,8 +816,10 @@ int cbfs_add_entry(struct cbfs_image *image, struct buffer *buffer,
 		break;
 	}
 
-	ERROR("Could not add [%s, %zd bytes (%zd KB)@0x%x]; too big?\n",
-	      buffer->name, buffer->size, buffer->size / 1024, content_offset);
+	ERROR("Could not add %s [header %d + content %zd bytes (%zd KB)] @0x%x; "
+	      "Largest empty slot: %d bytes\n",
+	      buffer->name, header_size, buffer->size, buffer->size / 1024, content_offset,
+	      max_null_entry_size);
 	return -1;
 }
 
@@ -864,7 +870,7 @@ static int cbfs_payload_decompress(struct cbfs_payload_segment *segments,
 		if (segments[i].type == PAYLOAD_SEGMENT_BSS ||
 				segments[i].type == PAYLOAD_SEGMENT_ENTRY) {
 			continue;
-		} else if (segments[i].type == PAYLOAD_SEGMENT_PARAMS) {
+		} else if (segments[i].type == PAYLOAD_SEGMENT_DEPRECATED_PARAMS) {
 			memcpy(out_ptr, in_ptr, segments[i].len);
 			segments[i].offset = new_offset;
 			new_offset += segments[i].len;
@@ -1090,7 +1096,7 @@ static int cbfs_payload_make_elf(struct buffer *buff, uint32_t arch,
 			segments++;
 		} else if (payload_type == PAYLOAD_SEGMENT_BSS) {
 			segments++;
-		} else if (payload_type == PAYLOAD_SEGMENT_PARAMS) {
+		} else if (payload_type == PAYLOAD_SEGMENT_DEPRECATED_PARAMS) {
 			segments++;
 		} else if (payload_type == PAYLOAD_SEGMENT_ENTRY) {
 			/* The last segment in a payload is always ENTRY as
@@ -1162,7 +1168,7 @@ static int cbfs_payload_make_elf(struct buffer *buff, uint32_t arch,
 			shdr.sh_size = segs[i].len;
 			name = strdup(".bss");
 			buffer_splice(&tbuff, buff, 0, 0);
-		} else if (segs[i].type == PAYLOAD_SEGMENT_PARAMS) {
+		} else if (segs[i].type == PAYLOAD_SEGMENT_DEPRECATED_PARAMS) {
 			shdr.sh_type = SHT_NOTE;
 			shdr.sh_flags = 0;
 			shdr.sh_size = segs[i].len;
@@ -1398,8 +1404,8 @@ static int cbfs_print_decoded_payload_segment_info(
 			seg->load_addr, seg->len);
 		break;
 
-	case PAYLOAD_SEGMENT_PARAMS:
-		fprintf(fp, "    parameters\n");
+	case PAYLOAD_SEGMENT_DEPRECATED_PARAMS:
+		fprintf(fp, "    parameters (deprecated)\n");
 		break;
 
 	default:

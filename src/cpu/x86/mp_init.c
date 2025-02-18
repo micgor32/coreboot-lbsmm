@@ -17,7 +17,6 @@
 #include <cpu/x86/mp.h>
 #include <delay.h>
 #include <device/device.h>
-#include <device/path.h>
 #include <smp/atomic.h>
 #include <smp/spinlock.h>
 #include <symbols.h>
@@ -205,7 +204,7 @@ static asmlinkage void ap_init(unsigned int index)
 	dev->path.apic.initial_lapicid = initial_lapicid();
 	dev->enabled = 1;
 
-	set_cpu_topology_from_leaf_b(dev);
+	set_cpu_topology(dev);
 
 	if (cpu_is_intel())
 		printk(BIOS_INFO, "AP: slot %u apic_id %x, MCU rev: 0x%08x\n", index,
@@ -563,7 +562,7 @@ static enum cb_err init_bsp(struct bus *cpu_bus)
 		return CB_ERR;
 	}
 	bsp->path.apic.initial_lapicid = initial_lapicid();
-	set_cpu_topology_from_leaf_b(bsp);
+	set_cpu_topology(bsp);
 
 	/* Find the device structure for the boot CPU. */
 	set_cpu_info(0, bsp);
@@ -793,7 +792,6 @@ static enum cb_err install_permanent_handler(int num_cpus, uintptr_t smbase,
 		.num_cpus = num_cpus,
 		.cpu_save_state_size = save_state_size,
 		.num_concurrent_save_states = num_cpus,
-		.cr3 = read_cr3(),
 	};
 
 	printk(BIOS_DEBUG, "Installing permanent SMM handler to 0x%08lx\n", smbase);

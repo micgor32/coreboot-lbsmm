@@ -9,27 +9,28 @@ import (
 	"review.coreboot.org/coreboot.git/util/intelp2m/parser"
 )
 
-// generateOutputFile - generates include file
-// parser            : parser data structure
-func generateOutputFile(parser *parser.ParserData) (err error) {
+type Printer struct{}
 
-	config.OutputGenFile.WriteString(`/* SPDX-License-Identifier: GPL-2.0-only */
+func (Printer) Linef(lvl int, format string, args ...interface{}) {
+	if config.InfoLevelGet() >= lvl {
+		fmt.Fprintf(config.OutputGenFile, format, args...)
+	}
+}
 
-#ifndef CFG_GPIO_H
-#define CFG_GPIO_H
+func (Printer) Line(lvl int, str string) {
+	if config.InfoLevelGet() >= lvl {
+		fmt.Fprint(config.OutputGenFile, str)
+	}
+}
 
-#include <gpio.h>
+var (
+	// Version is injected into main during project build
+	Version string = "Unknown"
+)
 
-/* Pad configuration was generated automatically using intelp2m utility */
-static const struct pad_config gpio_table[] = {
-`)
-	// Add the pads map
-	parser.PadMapFprint()
-	config.OutputGenFile.WriteString(`};
-
-#endif /* CFG_GPIO_H */
-`)
-	return nil
+// printVersion - print the utility version in the console
+func printVersion() {
+	fmt.Printf("[ intelp2m ] Version: %s\n", Version)
 }
 
 // main
@@ -49,14 +50,14 @@ func main() {
 
 	nonCheckFlag := flag.Bool("n",
 		false,
-		"Generate macros without checking.\n" +
-		"\tIn this case, some fields of the configuration registers\n" +
-		"\tDW0 will be ignored.\n")
+		"Generate macros without checking.\n"+
+			"\tIn this case, some fields of the configuration registers\n"+
+			"\tDW0 will be ignored.\n")
 
-	infoLevels := []*bool {
-		flag.Bool("i",    false, "Show pads function in the comments"),
-		flag.Bool("ii",   false, "Show DW0/DW1 value in the comments"),
-		flag.Bool("iii",  false, "Show ignored bit fields in the comments"),
+	infoLevels := []*bool{
+		flag.Bool("i", false, "Show pads function in the comments"),
+		flag.Bool("ii", false, "Show DW0/DW1 value in the comments"),
+		flag.Bool("iii", false, "Show ignored bit fields in the comments"),
 		flag.Bool("iiii", false, "Show target PAD_CFG() macro in the comments"),
 	}
 
@@ -65,19 +66,23 @@ func main() {
 		"\t1 - gpio.h\n"+
 		"\t2 - your template\n\t")
 
-	platform :=  flag.String("p", "snr", "set platform:\n"+
+	platform := flag.String("p", "snr", "set platform:\n"+
 		"\tsnr - Sunrise PCH or Skylake/Kaby Lake SoC\n"+
 		"\tlbg - Lewisburg PCH with Xeon SP\n"+
 		"\tapl - Apollo Lake SoC\n"+
 		"\tcnl - CannonLake-LP or Whiskeylake/Coffeelake/Cometlake-U SoC\n"+
+		"\ttgl - TigerLake-H SoC\n"+
 		"\tadl - AlderLake PCH\n"+
-		"\tjsl - Jasper Lake SoC\n")
+		"\tjsl - Jasper Lake SoC\n"+
+		"\tmtl - MeteorLake SoC\n"+
+		"\tebg - Emmitsburg PCH with Xeon SP\n")
 
-	fieldstyle :=  flag.String("fld", "none", "set fields macros style:\n"+
+	fieldstyle := flag.String("fld", "none", "set fields macros style:\n"+
 		"\tcb  - use coreboot style for bit fields macros\n"+
 		"\tfsp - use fsp style\n"+
 		"\traw - do not convert, print as is\n")
 
+	printVersion()
 	flag.Parse()
 
 	config.IgnoredFieldsFlagSet(*ignFlag)
@@ -86,7 +91,7 @@ func main() {
 	for level, flag := range infoLevels {
 		if *flag {
 			config.InfoLevelSet(level + 1)
-			fmt.Printf("Info level: Use level %d!\n", level + 1)
+			fmt.Printf("Info level: Use level %d!\n", level+1)
 			break
 		}
 	}
@@ -135,13 +140,31 @@ func main() {
 	config.OutputGenFile = outputGenFile
 	config.InputRegDumpFile = inputRegDumpFile
 
-	parser := parser.ParserData{}
-	parser.Parse()
+	prs := parser.ParserData{}
+	prs.Parse()
 
-	// gpio.h
-	err = generateOutputFile(&parser)
-	if err != nil {
-		fmt.Printf("Error! Can not create the file with GPIO configuration!\n")
+	generator := parser.Generator{
+		PrinterIf: Printer{},
+		Data:      &prs,
+	}
+	header := fmt.Sprintf(`/* SPDX-License-Identifier: GPL-2.0-only */
+
+#ifndef CFG_GPIO_H
+#define CFG_GPIO_H
+
+#include <gpio.h>
+
+/* Pad configuration was generated automatically using intelp2m %s */
+static const struct pad_config gpio_table[] = {`, Version)
+	config.OutputGenFile.WriteString(header + "\n")
+	// Add the pads map
+
+	if err := generator.Run(); err != nil {
+		fmt.Printf("Error: %v", err)
 		os.Exit(1)
 	}
+	config.OutputGenFile.WriteString(`};
+
+#endif /* CFG_GPIO_H */
+`)
 }

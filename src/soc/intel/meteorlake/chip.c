@@ -18,13 +18,13 @@
 #include <soc/intel/common/reset.h>
 #include <soc/intel/common/vbt.h>
 #include <soc/iomap.h>
-#include <soc/itss.h>
 #include <soc/p2sb.h>
 #include <soc/pci_devs.h>
 #include <soc/pcie.h>
 #include <soc/ramstage.h>
 #include <soc/soc_chip.h>
 #include <soc/tcss.h>
+#include <static.h>
 
 #if CONFIG(HAVE_ACPI_TABLES)
 const char *soc_acpi_name(const struct device *dev)
@@ -185,6 +185,9 @@ void soc_init_pre_device(void *chip_info)
 	/* Swap enabled PCI ports in device tree if needed. */
 	pcie_rp_update_devicetree(get_pcie_rp_table());
 
+	/* Swap enabled TBT root ports in device tree if needed. */
+	pcie_rp_update_devicetree(get_tbt_pcie_rp_table());
+
 	/*
 	 * Earlier when coreboot used to send EOP at late as possible caused
 	 * issue of delayed response from CSE since CSE was busy loading payload.
@@ -262,7 +265,7 @@ static void soc_enable(struct device *dev)
 
 static void soc_init_final_device(void *chip_info)
 {
-	uint32_t reset_status = fsp_get_pch_reset_status();
+	efi_return_status_t reset_status = fsp_get_pch_reset_status();
 
 	if (reset_status == FSP_SUCCESS)
 		return;
@@ -271,8 +274,8 @@ static void soc_init_final_device(void *chip_info)
 	fsp_handle_reset(reset_status);
 
 	/* Control shouldn't return here */
-	die_with_post_code(POSTCODE_HW_INIT_FAILURE,
-		 "Failed to handle the FSP reset request with error 0x%08x\n", reset_status);
+	fsp_die_with_post_code(reset_status, POSTCODE_HW_INIT_FAILURE,
+			 "Failed to handle the FSP reset request with error");
 }
 
 struct chip_operations soc_intel_meteorlake_ops = {

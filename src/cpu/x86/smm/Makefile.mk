@@ -28,7 +28,7 @@ $(call src-to-obj,ramstage,$(obj)/cpu/x86/smm/smm.manual): $(obj)/smm/smm
 	@printf "    OBJCOPY    $(subst $(obj)/,,$(@))\n"
 	cd $(dir $<); $(OBJCOPY_smm) -I binary $(notdir $<) $(target-objcopy) $(abspath $@)
 
-ifeq ($(CONFIG_HAVE_SMI_HANDLER),y)
+ifeq ($(CONFIG_HAVE_NATIVE_SMI_HANDLER),y)
 ramstage-srcs += $(obj)/cpu/x86/smm/smm.manual
 endif
 

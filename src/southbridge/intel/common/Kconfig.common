@@ -92,7 +92,7 @@ config VALIDATE_INTEL_DESCRIPTOR
 	  then the bootimage cannot be built.
 
 config INTEL_CHIPSET_LOCKDOWN
-	depends on HAVE_INTEL_CHIPSET_LOCKDOWN && HAVE_SMI_HANDLER && !CHROMEOS
+	depends on HAVE_INTEL_CHIPSET_LOCKDOWN && !CHROMEOS
 	#ChromeOS's payload seems to handle finalization on its on.
 	bool "Lock down chipset in coreboot"
 	default y

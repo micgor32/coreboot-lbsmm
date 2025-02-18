@@ -11,7 +11,7 @@ ramstage-y += mainboard.c
 ramstage-$(CONFIG_CHROMEOS) += chromeos.c
 ramstage-y += ec.c
 
-smm-$(CONFIG_HAVE_SMI_HANDLER) += smihandler.c
+smm-$(CONFIG_HAVE_NATIVE_SMI_HANDLER) += smihandler.c
 
 BASEBOARD_DIR:=$(call strip_quotes,$(CONFIG_BASEBOARD_DIR))
 

@@ -328,7 +328,7 @@ static const char *lpc_acpi_name(const struct device *dev)
 static void lpc_final(struct device *dev)
 {
 	if (!acpi_is_wakeup_s3()) {
-		if (CONFIG(HAVE_SMI_HANDLER))
+		if (CONFIG(HAVE_NATIVE_SMI_HANDLER))
 			outl(0x0, ACPI_PM1_CNT_BLK);	/* clear SCI_EN */
 		else
 			outl(0x1, ACPI_PM1_CNT_BLK);	/* set SCI_EN */

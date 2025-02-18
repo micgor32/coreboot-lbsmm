@@ -74,7 +74,7 @@ config SPI_FLASH_INCLUDE_ALL_DRIVERS
 
 config SPI_FLASH_SMM
 	bool
-	depends on HAVE_SMI_HANDLER
+	depends on HAVE_NATIVE_SMI_HANDLER
 	help
 	  Select this option if you want SPI flash support in SMM.
 

@@ -778,6 +778,9 @@ static enum cb_err install_relocation_handler(int num_cpus, size_t save_state_si
 static enum cb_err install_permanent_handler(int num_cpus, uintptr_t smbase,
 				     size_t smsize, size_t save_state_size)
 {
+	if (!CONFIG(HAVE_NATIVE_SMI_HANDLER))
+		return CB_SUCCESS;
+
 	/*
 	 * All the CPUs will relocate to permanent handler now. Set parameters
 	 * needed for all CPUs. The placement of each CPUs entry point is
